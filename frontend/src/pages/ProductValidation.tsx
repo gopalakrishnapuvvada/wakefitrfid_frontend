@@ -761,7 +761,7 @@ export const ProductValidation: React.FC = () => {
               Awaiting Next Scan Event
             </div>
             <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', maxWidth: '420px', margin: '4px auto 20px auto' }}>
-              Trigger your CIPHER RS38 handheld or stationary RFID reader, or use the simulation triggers above to scan a product.
+              Trigger your CIPHER RS38 handheld or stationary RFID reader, or enter the scan details manually below.
             </div>
 
             {/* ── Manual Entry Form ── */}
@@ -842,13 +842,6 @@ export const ProductValidation: React.FC = () => {
               </Button>
             </div>
 
-            <Button
-              type="primary"
-              style={{ backgroundColor: '#E53935', borderColor: '#E53935' }}
-              onClick={() => processScanData('WAK-MAT-787208', 'success')}
-            >
-              Simulate Normal Scan
-            </Button>
           </div>
         )}
       </Card>
