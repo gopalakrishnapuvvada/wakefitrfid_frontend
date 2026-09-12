@@ -127,32 +127,32 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   useEffect(() => {
     MasterDataApi.getMasterData()
       .then(items => {
-        if (Array.isArray(items) && items.length > 0) {
+        if (Array.isArray(items)) {
           setMasterData(items);
         }
       })
       .catch(err => {
-        console.warn('Backend Master Data API unavailable, using local/cached catalog:', err);
+        console.warn('Backend Master Data API unavailable:', err);
       });
 
     DevicesApi.getDevices()
       .then(devList => {
-        if (Array.isArray(devList) && devList.length > 0) {
+        if (Array.isArray(devList)) {
           setDevices(devList);
         }
       })
       .catch(err => {
-        console.warn('Backend Devices API unavailable, using local/cached devices:', err);
+        console.warn('Backend Devices API unavailable:', err);
       });
 
     TransactionsApi.getTransactions()
       .then(txns => {
-        if (Array.isArray(txns) && txns.length > 0) {
+        if (Array.isArray(txns)) {
           setMarriedTransactions(txns);
         }
       })
       .catch(err => {
-        console.warn('Backend Transactions API unavailable, using local/cached transactions:', err);
+        console.warn('Backend Transactions API unavailable:', err);
       });
   }, []);
 

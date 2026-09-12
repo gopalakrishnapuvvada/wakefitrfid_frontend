@@ -41,7 +41,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           >
             <Statistic
               title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FG WIP Transactions Today</span>}
-              value={stats.labelsTodayCount + 842}
+              value={Math.max(0, stats.totalMarriedToday - stats.dispatchedTodayCount)}
               prefix={<FileTextOutlined style={{ color: '#E53935', marginRight: '6px' }} />}
               valueStyle={{ fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}
             />
@@ -72,7 +72,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           >
             <Statistic
               title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FG Dispatch Transactions Today</span>}
-              value={614 + (stats.dispatchedTodayCount || 4)}
+              value={stats.dispatchedTodayCount}
               prefix={<CheckCircleOutlined style={{ color: '#10B981', marginRight: '6px' }} />}
               valueStyle={{ fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}
             />

@@ -46,45 +46,6 @@ interface RecentConveyorRead {
   antenna: string;
 }
 
-const INITIAL_FALLBACK_READS: RecentConveyorRead[] = [
-  {
-    id: 'READ-001',
-    timestamp: '2026-08-31 15:42:19',
-    transactionId: 'TXN-20260831-0089',
-    rfidTag: 'E280117020002164A5B801D3',
-    materialCode: 'WAK-MAT-787208',
-    partNumber: 'FG-ORT-KNG-08',
-    workOrderNo: 'WO-2026-0831-99214',
-    productName: 'Orthopaedic Memory Foam Mattress (King - 78x72x8)',
-    status: 'Dispatch',
-    antenna: 'Port 1 (Overhead)',
-  },
-  {
-    id: 'READ-002',
-    timestamp: '2026-08-31 15:41:45',
-    transactionId: 'TXN-20260831-0088',
-    rfidTag: 'E280117020002164A5B801C2',
-    materialCode: 'WAK-SOF-NAP-3ST',
-    partNumber: 'FG-NAP-SOF-03',
-    workOrderNo: 'WO-2026-0831-99210',
-    productName: 'Napper 3-Seater Premium Fabric Sofa (Navy Blue)',
-    status: 'Dispatch',
-    antenna: 'Port 1 (Overhead)',
-  },
-  {
-    id: 'READ-003',
-    timestamp: '2026-08-31 15:40:50',
-    transactionId: 'TXN-20260831-0087',
-    rfidTag: 'E280117020002164A5B801B1',
-    materialCode: 'WAK-REC-MOT-BRN',
-    partNumber: 'FG-MOT-REC-01',
-    workOrderNo: 'WO-2026-0831-99205',
-    productName: 'Motorized Single Recliner (Brown Leatherette)',
-    status: 'Dispatch',
-    antenna: 'Port 1 (Overhead)',
-  },
-];
-
 export const LabelGeneration: React.FC = () => {
   const { masterData, updateTransactionStatus, marriedTransactions } = useData();
   const { isDark } = useAppTheme();
@@ -123,7 +84,7 @@ export const LabelGeneration: React.FC = () => {
     } catch {
       // fallback
     }
-    return INITIAL_FALLBACK_READS;
+    return [];
   });
 
   // Automatically save recentReads to localStorage whenever it changes

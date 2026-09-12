@@ -47,21 +47,8 @@ export const ProductValidation: React.FC = () => {
   const [lastCommittedTxn, setLastCommittedTxn] = useState<MarriedTransaction | null>(null);
   const [searchText, setSearchText] = useState('');
 
-  // Initial Production Scanned State (RFID ID + QR1 Material Code + QR2 Work Order No)
-  const initialMaster: MasterDataItem = masterData[0];
-  const [currentScan, setCurrentScan] = useState<ScannedLabelData | null>({
-    readingSuccess: true,
-    rfidUniqueId: 'E280117020002164A5B801D3',
-    rfidProtocol: 'EPC Gen2 / ISO 18000-6C (UHF 865.7 MHz)',
-    rfidSignalRssi: '-46 dBm (Optimal)',
-    qr1MaterialCode: initialMaster?.materialCode || 'WAK-MAT-787208',
-    qr2WorkOrderNo: 'WO-2026-0831-99214',
-    matchedFgItem: initialMaster,
-    scannedAt: '2026-08-31 15:50:10',
-    deviceId: activeDevice?.id || 'dev-cpr-01',
-    deviceName: activeDevice?.name || 'CIPHER RS38 UHF Reader #01',
-    isQueued: false,
-  });
+  // Initial Production Scanned State (starts null, populated via incoming RFID/QR scan events or trigger)
+  const [currentScan, setCurrentScan] = useState<ScannedLabelData | null>(null);
 
   // Buffer tracking for incoming external POST /post_scan requests (e.g. from curl or physical RFID/barcode scanners)
   const [lastProcessedScanId, setLastProcessedScanId] = useState<string | null>(null);
