@@ -15,16 +15,12 @@ interface ConveyorAnimationProps {
   currentProduct: MasterDataItem;
   rfidTag: string;
   scanPhase: SickScanPhase;
-  onTriggerScan?: () => void;
-  autoStream?: boolean;
-  onToggleAutoStream?: (enabled: boolean) => void;
 }
 
 export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
   currentProduct,
   rfidTag,
   scanPhase,
-  onTriggerScan,
 }) => {
   const { isDark } = useAppTheme();
   const isDetected = scanPhase === 'reading_success';
@@ -157,7 +153,6 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
       >
         {/* Left Column: SICK RFU630 Hardware Module Panel */}
         <div
-          onClick={onTriggerScan}
           style={{
             backgroundColor: '#0b1120',
             borderRadius: '10px',
@@ -169,7 +164,6 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
             gap: '14px',
             position: 'relative',
             overflow: 'hidden',
-            cursor: onTriggerScan ? 'pointer' : 'default',
           }}
         >
           {/* Subtle Industrial Grid Background */}
@@ -291,7 +285,6 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
 
         {/* Right Column: Active Detection Zone & Live FG View */}
         <div
-          onClick={onTriggerScan}
           style={{
             backgroundColor: '#0b1120',
             borderRadius: '10px',
@@ -304,7 +297,6 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
             position: 'relative',
             overflow: 'hidden',
             transition: 'border-color 0.3s ease',
-            cursor: onTriggerScan ? 'pointer' : 'default',
           }}
         >
           {/* SICK RF Signal Wave Halo Overlay */}

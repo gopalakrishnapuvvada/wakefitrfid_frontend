@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef } from 'react';
 import { 
   Row, 
   Col, 
@@ -26,7 +26,7 @@ import { useAppTheme } from '../context/ThemeContext';
 import { ConveyorAnimation, type SickScanPhase } from '../components/lookup/ConveyorAnimation';
 import type { MasterDataItem } from '../types';
 import { TransactionsApi } from '../services/api';
-import { formatToIST, getCurrentIST } from '../utils/dateUtils';
+import { formatToIST } from '../utils/dateUtils';
 
 const { Option } = Select;
 
@@ -66,10 +66,8 @@ export const LabelGeneration: React.FC = () => {
   });
   const currentProduct: MasterDataItem = masterData[selectedSkuIndex] || masterData[0];
 
-  // Scan Lifecycle & Trigger State
+  // Scan Lifecycle State
   const [scanPhase, setScanPhase] = useState<SickScanPhase>('idle');
-  const [autoStream, setAutoStream] = useState<boolean>(false);
-  const [scanPulseToken, setScanPulseToken] = useState<number>(0);
 
   // Recent Conveyor Reads History Stream (Persisted in localStorage across refreshes)
   const [recentReads, setRecentReads] = useState<RecentConveyorRead[]>(() => {
@@ -177,7 +175,7 @@ export const LabelGeneration: React.FC = () => {
   // Copy success indicator states
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Standby auto-reset effect: After detection, return scanner UI to standby (Green Steady - No FG Detected) after 2 seconds
+  // Standby auto-reset effect: After detection, return scanner UI to standby after 2 seconds
   useEffect(() => {
     if (scanPhase === 'reading_success') {
       const timer = setTimeout(() => {
@@ -185,7 +183,7 @@ export const LabelGeneration: React.FC = () => {
       }, 2000);
       return () => clearTimeout(timer);
     }
-  }, [scanPhase, scanPulseToken]);
+  }, [scanPhase]);
 
   // Buffer tracking for continuous SICK RFU630 fixed RFID reader listener
   const lastProcessedFixedScanIdRef = useRef<string | null>(null);
@@ -216,7 +214,6 @@ export const LabelGeneration: React.FC = () => {
 
           // 1. SICK RFID Portal detection animation: Orange blink as box passes under antenna
           setScanPhase('reading_success');
-          setScanPulseToken(prev => prev + 1);
 
           // 2. Update Live Traceability & Coupled Product Identifiers tiles
           setActiveTransactionId(pending.transactionId);
@@ -341,79 +338,6 @@ export const LabelGeneration: React.FC = () => {
     );
   }, [recentReads, tableSearchText]);
 
-  // Trigger SICK Reader Read Success Event (Orange Blinking on FG Detected)
-  const handleTriggerSickScan = useCallback(() => {
-    if (scanPhase === 'reading_success') return;
-
-    const timeStr = getCurrentIST();
-    const randTag = `E280117020002164A5B80${Math.floor(100 + Math.random() * 900)}`;
-    const randTxn = `TXN-${new Date().toISOString().substring(0, 10).replace(/-/g, '')}-${Math.floor(1000 + Math.random() * 9000)}`;
-    const randWo = `WO-${new Date().toISOString().substring(0, 10)}-${Math.floor(10000 + Math.random() * 90000)}`;
-
-    setActiveTransactionId(randTxn);
-    setActiveRfidTag(randTag);
-    setActiveWorkOrder(randWo);
-    setScanPhase('reading_success');
-    setScanPulseToken(prev => prev + 1);
-
-    // Save to localStorage
-    try {
-      localStorage.setItem(
-        LAST_FIXED_SCAN_KEY,
-        JSON.stringify({
-          transactionId: randTxn,
-          rfidTag: randTag,
-          workOrderNo: randWo,
-          selectedSkuIndex,
-        })
-      );
-    } catch {
-      // ignore
-    }
-
-    // Trigger Celebration Confetti Flash
-    confetti({
-      particleCount: 25,
-      spread: 50,
-      origin: { y: 0.5, x: 0.5 },
-      colors: ['#F97316', '#EA580C', '#FB923C', '#10B981'],
-    });
-
-    // Add to recent audit stream
-    const newRecord: RecentConveyorRead = {
-      id: `READ-${Date.now()}`,
-      timestamp: timeStr,
-      transactionId: randTxn,
-      rfidTag: randTag,
-      materialCode: currentProduct.materialCode,
-      partNumber: currentProduct.partNumber,
-      workOrderNo: randWo,
-      productName: currentProduct.productDescription || currentProduct.productName || 'Finished Good',
-      status: 'Dispatch',
-      antenna: 'Port 1 (Overhead)',
-    };
-
-    setRecentReads(prev => {
-      const next = [newRecord, ...prev.slice(0, 14)];
-      try {
-        localStorage.setItem(DISPATCH_READS_KEY, JSON.stringify(next));
-      } catch {
-        // ignore
-      }
-      return next;
-    });
-  }, [scanPhase, selectedSkuIndex, currentProduct]);
-
-  // Auto-continuous scan simulation effect
-  useEffect(() => {
-    if (!autoStream) return;
-    const timer = setInterval(() => {
-      // Pick next product SKU periodically
-      setSelectedSkuIndex(prev => (prev + 1) % masterData.length);
-      handleTriggerSickScan();
-    }, 6500);
-    return () => clearInterval(timer);
-  }, [autoStream, handleTriggerSickScan, masterData.length]);
 
   // Helper to copy text to clipboard with user feedback
   const handleCopy = (text: string, keyName: string, label: string) => {
@@ -457,9 +381,6 @@ Read Timestamp: ${new Date().toISOString()}
         currentProduct={currentProduct}
         rfidTag={activeRfidTag}
         scanPhase={scanPhase}
-        onTriggerScan={handleTriggerSickScan}
-        autoStream={autoStream}
-        onToggleAutoStream={setAutoStream}
       />
 
       {/* 3. Four Key Copyable Traceability Data Fields (Highlighted Requirement) */}
