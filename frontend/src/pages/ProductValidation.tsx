@@ -47,6 +47,11 @@ export const ProductValidation: React.FC = () => {
   const [lastCommittedTxn, setLastCommittedTxn] = useState<MarriedTransaction | null>(null);
   const [searchText, setSearchText] = useState('');
 
+  // Manual Scan Input Form state
+  const [manualRfid, setManualRfid] = useState('');
+  const [manualMatCode, setManualMatCode] = useState('');
+  const [manualWoNo, setManualWoNo] = useState('');
+
   // Initial Production Scanned State (starts null, populated via incoming RFID/QR scan events or trigger)
   const [currentScan, setCurrentScan] = useState<ScannedLabelData | null>(null);
 
@@ -744,7 +749,7 @@ export const ProductValidation: React.FC = () => {
         ) : (
           <div
             style={{
-              padding: '48px 24px',
+              padding: '32px 24px',
               textAlign: 'center',
               backgroundColor: isDark ? '#0f172a' : '#f8fafc',
               borderRadius: '8px',
@@ -755,9 +760,88 @@ export const ProductValidation: React.FC = () => {
             <div style={{ fontSize: '15px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b' }}>
               Awaiting Next Scan Event
             </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', maxWidth: '420px', margin: '4px auto 16px auto' }}>
+            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', maxWidth: '420px', margin: '4px auto 20px auto' }}>
               Trigger your CIPHER RS38 handheld or stationary RFID reader, or use the simulation triggers above to scan a product.
             </div>
+
+            {/* ── Manual Entry Form ── */}
+            <div
+              style={{
+                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                borderRadius: '10px',
+                padding: '20px 24px',
+                maxWidth: '480px',
+                margin: '0 auto 16px auto',
+                textAlign: 'left',
+              }}
+            >
+              <div style={{ fontSize: '13px', fontWeight: 700, color: isDark ? '#94a3b8' : '#475569', marginBottom: '14px', letterSpacing: '0.5px' }}>
+                MANUAL SCAN ENTRY
+              </div>
+
+              {/* RFID */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                  Factory Generated RFID Tag Unique ID
+                </div>
+                <Input
+                  placeholder="e.g. E280117020002164A5B8012F"
+                  value={manualRfid}
+                  onChange={e => setManualRfid(e.target.value)}
+                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                  allowClear
+                />
+              </div>
+
+              {/* Material Code */}
+              <div style={{ marginBottom: '12px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                  Material Code
+                </div>
+                <Input
+                  placeholder="e.g. WAK-MAT-787208"
+                  value={manualMatCode}
+                  onChange={e => setManualMatCode(e.target.value)}
+                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                  allowClear
+                />
+              </div>
+
+              {/* Work Order No */}
+              <div style={{ marginBottom: '16px' }}>
+                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
+                  Work Order Number
+                </div>
+                <Input
+                  placeholder="e.g. WO-2026-0912-10021"
+                  value={manualWoNo}
+                  onChange={e => setManualWoNo(e.target.value)}
+                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
+                  allowClear
+                />
+              </div>
+
+              <Button
+                type="primary"
+                block
+                disabled={!manualRfid.trim() || !manualMatCode.trim() || !manualWoNo.trim()}
+                style={{ backgroundColor: '#E53935', borderColor: '#E53935', fontWeight: 700 }}
+                onClick={() => {
+                  processScanData(manualMatCode.trim(), 'success', {
+                    rfid: manualRfid.trim(),
+                    matCode: manualMatCode.trim(),
+                    woNo: manualWoNo.trim(),
+                  });
+                  setManualRfid('');
+                  setManualMatCode('');
+                  setManualWoNo('');
+                }}
+              >
+                Submit & Process Scan
+              </Button>
+            </div>
+
             <Button
               type="primary"
               style={{ backgroundColor: '#E53935', borderColor: '#E53935' }}
