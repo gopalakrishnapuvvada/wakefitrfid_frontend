@@ -226,7 +226,7 @@ class PostFixedRfidRequest(BaseModel):
     def normalize_rfid(cls, data: Any) -> Any:
         if isinstance(data, dict):
             if "rfidUniqueId" not in data and "factory_rfid_tag_id" not in data:
-                for k in ["rfid", "rfid_unique_id", "tagId", "epc", "rfidTag"]:
+                for k in ["rfid", "rfid_unique_id", "rfid_tag", "tagId", "epc", "rfidTag"]:
                     if k in data:
                         data["rfidUniqueId"] = str(data[k])
                         break
