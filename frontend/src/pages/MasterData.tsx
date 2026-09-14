@@ -34,18 +34,19 @@ import {
   StopOutlined,
   EyeOutlined,
   InfoCircleOutlined,
-  LinkOutlined
+  LinkOutlined,
+  ExclamationCircleOutlined
 } from '@ant-design/icons';
 import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
-import type { MasterDataItem, MasterDataStatus } from '../types';
+import type { MasterDataItem, MasterDataStatus, MarriedTransaction } from '../types';
 
 export const NO_IMAGE_FALLBACK = '/images/no_image.svg';
 
 const { Option } = Select;
 
 export const MasterData: React.FC = () => {
-  const { masterData, addMasterDataItem, updateMasterDataItem, deleteMasterDataItem } = useData();
+  const { masterData, addMasterDataItem, updateMasterDataItem, deleteMasterDataItem, marriedTransactions } = useData();
   const { isDark } = useAppTheme();
 
   const [searchText, setSearchText] = useState('');
@@ -219,11 +220,92 @@ export const MasterData: React.FC = () => {
     }
   };
 
-  const handleDelete = (id: string, code: string) => {
-    deleteMasterDataItem(id);
-    message.success(`Master Data SKU ${code} removed.`);
-    if (detailItem && detailItem.id === id) {
-      setDetailDrawerOpen(false);
+  const handleDelete = async (id: string, code: string) => {
+    // 1. Client-side check if transactions exist for this Material Code
+    const cleanCode = (code || '').trim().toUpperCase();
+    const linkedTxns = (marriedTransactions || []).filter(
+      (t: MarriedTransaction) => (t.materialCode || '').trim().toUpperCase() === cleanCode
+    );
+
+    if (linkedTxns.length > 0) {
+      Modal.error({
+        title: 'Cannot Delete Master Data SKU',
+        icon: <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />,
+        content: (
+          <div style={{ marginTop: '10px' }}>
+            <p style={{ fontSize: '14px', color: '#1e293b' }}>
+              Material Code <Tag color="volcano" style={{ fontWeight: 700, fontSize: '13px' }}>{code}</Tag> cannot be deleted.
+            </p>
+            <div 
+              style={{ 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fecaca', 
+                padding: '12px 14px', 
+                borderRadius: '8px', 
+                marginTop: '8px',
+                marginBottom: '10px'
+              }}
+            >
+              <span style={{ color: '#b91c1c', fontWeight: 600, fontSize: '13px' }}>
+                Foreign Key Relationship Restriction:
+              </span>
+              <div style={{ color: '#7f1d1d', fontSize: '12px', marginTop: '4px' }}>
+                There {linkedTxns.length === 1 ? 'is' : 'are'} currently <strong>{linkedTxns.length}</strong> active transaction record{linkedTxns.length === 1 ? '' : 's'} in <strong>Transaction Data</strong> linked to this Material Code.
+              </div>
+            </div>
+            <p style={{ color: '#64748b', fontSize: '12px', lineHeight: '1.5' }}>
+              Due to database foreign key integrity, Master Data records with existing transaction history cannot be deleted. Please remove or archive the corresponding transactions before deleting this SKU.
+            </p>
+          </div>
+        ),
+        okText: 'Understood',
+        okButtonProps: { style: { backgroundColor: '#E53935', borderColor: '#E53935', fontWeight: 600 } },
+      });
+      return;
+    }
+
+    // 2. Call backend API deletion and catch any server-side foreign key integrity error
+    try {
+      await deleteMasterDataItem(id);
+      message.success(`Master Data SKU ${code} removed.`);
+      if (detailItem && (detailItem.id === id || detailItem.materialCode === code)) {
+        setDetailDrawerOpen(false);
+      }
+    } catch (err: any) {
+      const errMsg = err?.message || 'Failed to delete Master Data record.';
+      Modal.error({
+        title: 'Cannot Delete Master Data SKU',
+        icon: <ExclamationCircleOutlined style={{ color: '#ff4d4f' }} />,
+        content: (
+          <div style={{ marginTop: '10px' }}>
+            <p style={{ fontSize: '14px', color: '#1e293b' }}>
+              Material Code <Tag color="volcano" style={{ fontWeight: 700, fontSize: '13px' }}>{code}</Tag> cannot be deleted.
+            </p>
+            <div 
+              style={{ 
+                backgroundColor: '#fef2f2', 
+                border: '1px solid #fecaca', 
+                padding: '12px 14px', 
+                borderRadius: '8px', 
+                marginTop: '8px',
+                marginBottom: '10px'
+              }}
+            >
+              <span style={{ color: '#b91c1c', fontWeight: 600, fontSize: '13px' }}>
+                Foreign Key Constraint Violation:
+              </span>
+              <div style={{ color: '#7f1d1d', fontSize: '12px', marginTop: '4px' }}>
+                {errMsg}
+              </div>
+            </div>
+            <p style={{ color: '#64748b', fontSize: '12px', lineHeight: '1.5' }}>
+              Due to database foreign key integrity, Master Data records with existing transaction history cannot be deleted. Please remove or archive the corresponding transactions before deleting this SKU.
+            </p>
+          </div>
+        ),
+        okText: 'Understood',
+        okButtonProps: { style: { backgroundColor: '#E53935', borderColor: '#E53935', fontWeight: 600 } },
+      });
     }
   };
 

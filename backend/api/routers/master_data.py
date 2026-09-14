@@ -3,12 +3,14 @@ from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_
+from sqlalchemy import func, or_
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models.master_data import FgCategory, FgStatus, MasterDataItem
 from models.roles import Role
 from models.devices import Device, DeviceCategory, Connection, DeviceStatus
+from models.transactions import TransactionData
 from schemas.master_data import (
     FgCategoryCreate,
     FgCategoryResponse,
@@ -426,13 +428,51 @@ def delete_master_data_item(
     id: str,
     db: Annotated[Session, Depends(get_db)],
 ):
-    item = db.query(MasterDataItem).filter(MasterDataItem.id == id).first()
+    clean_id = id.strip()
+    item = (
+        db.query(MasterDataItem)
+        .filter(
+            or_(
+                MasterDataItem.id == clean_id,
+                MasterDataItem.material_code == clean_id,
+            )
+        )
+        .first()
+    )
     if not item:
-        raise HTTPException(status_code=404, detail=f"Master data item '{id}' not found.")
+        raise HTTPException(status_code=404, detail=f"Master data item '{clean_id}' not found.")
 
-    db.delete(item)
-    db.commit()
-    return {"success": True, "message": f"Item '{id}' deleted successfully"}
+    # Foreign Key check: Restrict deletion if corresponding transactions exist in Transaction Data
+    linked_txn_count = (
+        db.query(func.count(TransactionData.sno))
+        .filter(TransactionData.material_code == item.material_code)
+        .scalar()
+        or 0
+    )
+    if linked_txn_count > 0:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot delete Master Data SKU '{item.material_code}': "
+                f"{linked_txn_count} corresponding transaction record(s) exist in Transaction Data linked to this material code. "
+                "Deletion is restricted by foreign key relationship. Please remove or archive linked transactions first."
+            ),
+        )
+
+    try:
+        db.delete(item)
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Cannot delete Master Data SKU '{item.material_code}': "
+                "Foreign key constraint violation. Associated transactions exist in the database."
+            ),
+        )
+
+    return {"success": True, "message": f"Master Data item '{item.material_code}' deleted successfully"}
 
 
 @router.post("/seed")

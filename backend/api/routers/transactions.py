@@ -506,14 +506,27 @@ def post_fixed_rfid(
             detail=f"RFID unique ID '{rfid}' was not found in transaction data table. Please validate and marry the FG first.",
         )
 
-    # Update status to 'dispatch' and timestamp
+    # 1. Ensure 'dispatch' status exists in status_transaction_data lookup table
+    if not db.query(StatusTransactionData).filter(StatusTransactionData.id == "dispatch").first():
+        db.add(StatusTransactionData(id="dispatch", name="Dispatch", created_by="system"))
+        db.flush()
+
+    # 2. Update status to 'dispatch' and timestamp
     now_utc = datetime.now(timezone.utc)
     now_ist = datetime.now(IST)
     txn.status_id = "dispatch"
     txn.label_lookup_timestamp = now_utc
     txn.updated_on = now_utc
-    db.commit()
-    db.refresh(txn)
+
+    try:
+        db.commit()
+        db.refresh(txn)
+    except IntegrityError as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Database constraint violation while updating transaction status to dispatch: {exc}",
+        )
 
     item = txn.master_item
     time_str = now_ist.strftime("%Y-%m-%d %H:%M:%S")

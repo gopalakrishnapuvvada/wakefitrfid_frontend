@@ -24,7 +24,7 @@ interface DataContextType {
   masterData: MasterDataItem[];
   addMasterDataItem: (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>) => MasterDataItem;
   updateMasterDataItem: (id: string, updates: Partial<MasterDataItem>) => void;
-  deleteMasterDataItem: (id: string) => void;
+  deleteMasterDataItem: (id: string) => Promise<void>;
   bulkImportMasterData: (items: Array<Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>>) => void;
   getMasterDataByCode: (code: string) => MasterDataItem | undefined;
 
@@ -198,13 +198,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     });
   };
 
-  const deleteMasterDataItem = (id: string) => {
-    setMasterData(prev => prev.filter(item => item.id !== id));
-
-    // Asynchronously delete on backend API
-    MasterDataApi.deleteItem(id).catch(err => {
-      console.warn(`Failed to delete master data item ${id} on backend API:`, err);
-    });
+  const deleteMasterDataItem = async (id: string): Promise<void> => {
+    // Delete on backend API first to validate database & foreign key constraints
+    await MasterDataApi.deleteItem(id);
+    setMasterData(prev => prev.filter(item => item.id !== id && item.materialCode !== id));
   };
 
   const bulkImportMasterData = (items: Array<Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>>) => {
