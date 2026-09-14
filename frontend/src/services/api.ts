@@ -245,6 +245,17 @@ export function getProductImageByMaterial(materialCode?: string, category?: stri
   return '/products/mattress_1.jpg';
 }
 
+/**
+ * Validates that an image string is an HTTP/HTTPS URL or relative asset path, rejecting raw Base64 data blobs.
+ */
+export function isValidImageUrl(url: any): boolean {
+  if (typeof url !== 'string') return false;
+  const u = url.trim();
+  if (!u || u === 'string' || u.toLowerCase() === 'null') return false;
+  if (u.startsWith('data:') || u.toLowerCase().includes('base64') || u.length > 500) return false;
+  return u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/');
+}
+
 export const MasterDataApi = {
   /**
    * GET /api/master_data/
@@ -254,14 +265,14 @@ export const MasterDataApi = {
     return items.map(item => {
       let imgList: string[] = [];
       if (Array.isArray(item.fgImage)) {
-        imgList = item.fgImage.filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+        imgList = item.fgImage.filter(isValidImageUrl);
       } else if (Array.isArray(item.fg_image)) {
-        imgList = item.fg_image.filter((x: any) => typeof x === 'string' && x.trim().length > 0);
+        imgList = item.fg_image.filter(isValidImageUrl);
       } else if (Array.isArray(item.images)) {
-        imgList = item.images.filter((x: any) => typeof x === 'string' && x.trim().length > 0);
-      } else if (typeof item.fgImage === 'string' && item.fgImage !== 'string' && item.fgImage.trim()) {
+        imgList = item.images.filter(isValidImageUrl);
+      } else if (isValidImageUrl(item.fgImage)) {
         imgList = [item.fgImage.trim()];
-      } else if (typeof item.fg_image === 'string' && item.fg_image !== 'string' && item.fg_image.trim()) {
+      } else if (isValidImageUrl(item.fg_image)) {
         imgList = [item.fg_image.trim()];
       }
 
@@ -301,9 +312,10 @@ export const MasterDataApi = {
    * POST /api/master_data/
    */
   async createItem(item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<MasterDataItem> {
-    const imagesPayload: string[] = Array.isArray(item.fgImage)
+    const rawImagesPayload: string[] = Array.isArray(item.fgImage)
       ? item.fgImage
       : (item.images && item.images.length > 0 ? item.images : (typeof item.fgImage === 'string' && item.fgImage ? [item.fgImage] : []));
+    const imagesPayload = rawImagesPayload.filter(isValidImageUrl);
 
     const payload = {
       fgImage: imagesPayload.slice(0, 4),
@@ -326,9 +338,9 @@ export const MasterDataApi = {
 
     let resImgs: string[] = [];
     if (Array.isArray(res.fgImage)) {
-      resImgs = res.fgImage;
+      resImgs = res.fgImage.filter(isValidImageUrl);
     } else if (Array.isArray(res.images)) {
-      resImgs = res.images;
+      resImgs = res.images.filter(isValidImageUrl);
     } else {
       resImgs = imagesPayload.length > 0 ? imagesPayload : [getProductImageByMaterial(res.materialCode, res.category)];
     }
@@ -358,9 +370,10 @@ export const MasterDataApi = {
    * PUT /api/master_data/{id}
    */
   async updateItem(id: string, updates: Partial<MasterDataItem>): Promise<MasterDataItem> {
-    const imagesPayload = updates.images !== undefined
+    const rawImagesPayload = updates.images !== undefined
       ? updates.images
       : (Array.isArray(updates.fgImage) ? updates.fgImage : (typeof updates.fgImage === 'string' && updates.fgImage ? [updates.fgImage] : undefined));
+    const imagesPayload = rawImagesPayload ? rawImagesPayload.filter(isValidImageUrl) : undefined;
 
     const payload = {
       fgImage: imagesPayload ? imagesPayload.slice(0, 4) : undefined,

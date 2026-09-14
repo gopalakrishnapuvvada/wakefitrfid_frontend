@@ -23,6 +23,7 @@ from schemas.transactions import (
     TransactionResponse,
     TransactionStatusUpdateRequest,
 )
+from schemas.master_data import normalize_fg_image
 from utils.dependencies import get_db
 
 router = APIRouter(
@@ -125,9 +126,25 @@ def create_marriage_transaction(
             ),
         )
 
-    # Check master data item
-    item = db.query(MasterDataItem).filter(MasterDataItem.material_code == payload.material_code).first()
-    item = db.query(MasterDataItem).filter(MasterDataItem.material_code == clean_mat).first()
+    # Check master data item (Foreign Key constraint enforcement)
+    item = (
+        db.query(MasterDataItem)
+        .filter(
+            or_(
+                MasterDataItem.material_code.ilike(clean_mat),
+                MasterDataItem.part_number.ilike(clean_mat),
+            )
+        )
+        .first()
+    )
+    if not item:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Foreign Key Constraint Failed: Material Code '{clean_mat}' is not present in "
+                f"Master Data Management. Please register this item in Material Management first before validating/inserting."
+            ),
+        )
 
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y%m%d")
@@ -138,12 +155,25 @@ def create_marriage_transaction(
         txn_seq += 1
         txn_id = f"TXN-{date_str}-{txn_seq:04d}"
 
-    # Determine status
+    # Determine status and validate scanner device foreign key
     is_dispatch = False
+    valid_device_id = None
     if payload.scanner_device:
-        dev = db.query(Device).filter(Device.device_id == payload.scanner_device).first()
-        if dev and ("portal" in dev.display_name.lower() or "dock" in dev.display_name.lower()):
-            is_dispatch = True
+        dev = db.query(Device).filter(
+            or_(
+                Device.device_id == payload.scanner_device,
+                Device.asset_code == payload.scanner_device,
+                Device.display_name.ilike(f"%{payload.scanner_device}%"),
+            )
+        ).first()
+        if dev:
+            valid_device_id = dev.device_id
+            if "portal" in dev.display_name.lower() or "dock" in dev.display_name.lower():
+                is_dispatch = True
+        else:
+            first_dev = db.query(Device).first()
+            valid_device_id = first_dev.device_id if first_dev else None
+
     if payload.status_id and payload.status_id.lower() in ["dispatch", "dispatched"]:
         is_dispatch = True
 
@@ -156,12 +186,12 @@ def create_marriage_transaction(
 
     new_txn = TransactionData(
         transaction_id=txn_id,
-        factory_rfid_tag_id=payload.factory_rfid_tag_id,
-        work_order_no=payload.work_order_no,
-        material_code=payload.material_code,
-        part_number=payload.part_number or (item.part_number if item else None),
-        category_id=payload.category_id or (item.category_id if item else None),
-        scanner_device=payload.scanner_device,
+        factory_rfid_tag_id=clean_rfid,
+        work_order_no=clean_wo,
+        material_code=item.material_code,  # exact foreign key matching master_data_items
+        part_number=payload.part_number or item.part_number,
+        category_id=payload.category_id or item.category_id,
+        scanner_device=valid_device_id,
         product_validation_timestamp=now,
         status_id=status_code,
         label_lookup_timestamp=now if is_dispatch else None,
@@ -174,7 +204,12 @@ def create_marriage_transaction(
     except IntegrityError as exc:
         db.rollback()
         err_msg = str(getattr(exc, "orig", exc))
-        if "uq_transactions_data_mat_wo_rfid" in err_msg or ("material_code" in err_msg and "factory_rfid_tag_id" in err_msg):
+        if "FOREIGN KEY constraint failed" in err_msg or "master_data_items.material_code" in err_msg or "FOREIGN KEY" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Foreign Key Violation: Material Code '{clean_mat}' is not present in Master Data Management.",
+            )
+        elif "uq_transactions_data_mat_wo_rfid" in err_msg or ("material_code" in err_msg and "factory_rfid_tag_id" in err_msg):
             raise HTTPException(
                 status_code=status.HTTP_409_CONFLICT,
                 detail=f"Duplicate Combination Rejected: The combination of RFID Tag '{clean_rfid}', Material Code '{clean_mat}', and Work Order '{clean_wo}' already exists.",
@@ -302,10 +337,7 @@ def post_can(
         cat_str = item.category.name if (item and item.category) else (item.category_id if item else None)
         item_images: list[str] = []
         if item and item.fg_image:
-            if isinstance(item.fg_image, list) and len(item.fg_image) > 0:
-                item_images = [str(x) for x in item.fg_image if x][:4]
-            elif isinstance(item.fg_image, str) and item.fg_image != "string" and item.fg_image.strip():
-                item_images = [item.fg_image.strip()]
+            item_images = normalize_fg_image(item.fg_image)
 
         if not item_images:
             item_images = [get_image_for_material(clean_mat, cat_str)]
@@ -338,27 +370,11 @@ def post_can(
                 "rfidInlayType": "EPC Gen2 UHF 865-867 MHz",
             }
         else:
-            inferred_cat = "Recliner" if "REC" in clean_mat.upper() else "Sofa" if "SOF" in clean_mat.upper() else "Bed" if "BED" in clean_mat.upper() else "Pillow" if "PIL" in clean_mat.upper() else "Mattress"
-            matched_data = {
-                "id": f"temp-{clean_mat}",
-                "materialCode": clean_mat,
-                "partNumber": f"FG-{clean_mat}",
-                "category": inferred_cat,
-                "model": "Standard FG Model",
-                "productDescription": f"Finished Good Product ({clean_mat})",
-                "productName": f"Finished Good ({clean_mat})",
-                "dimensions": {"lengthMm": 1981, "widthMm": 1829, "heightMm": 203},
-                "netWeight": 25.0,
-                "grossWeight": 27.5,
-                "packageType": "Standard Package",
-                "status": "Active",
-                "fgImage": prod_image,
-                "images": [prod_image],
-                "colorVariant": "Standard",
-                "firmnessRating": "Standard",
-                "warrantyYears": 5,
-                "rfidInlayType": "EPC Gen2 UHF 865-867 MHz",
-            }
+            # Foreign Key constraint: item does NOT exist in Master Data Management
+            matched_data = None
+
+    # Foreign Key validation state
+    material_in_master = bool(item) if raw_mat else True
 
     # Check if the composite combination (RFID Tag + Material Code + Work Order No) has already been committed in database
     already_committed = False
@@ -392,7 +408,7 @@ def post_can(
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     scan_id = f"SCAN-{int(datetime.now().timestamp())}-{_scan_counter}"
-    is_complete = bool(raw_rfid and raw_mat and raw_wo)
+    is_complete = bool(raw_rfid and raw_mat and raw_wo and material_in_master)
     summary_parts = [f"{k}='{v}'" for k, v in [('RFID', raw_rfid), ('Material', raw_mat), ('WO', raw_wo)] if v]
 
     _latest_pending_scan = {
@@ -408,7 +424,9 @@ def post_can(
         "deviceId": actual_dev_id,
         "deviceName": dev_name,
         "matchedFgItem": matched_data,
-        "readingSuccess": is_complete,
+        "materialInMaster": material_in_master,
+        "materialErrorMessage": None if material_in_master else f"Material Code '{raw_mat}' is not present in Master Data Management.",
+        "readingSuccess": is_complete and not already_committed,
         "isComplete": is_complete,
         "alreadyCommitted": already_committed,
         "existingTransaction": existing_txn_info,
@@ -513,10 +531,7 @@ def post_fixed_rfid(
 
     item_images: list[str] = []
     if item and item.fg_image:
-        if isinstance(item.fg_image, list) and len(item.fg_image) > 0:
-            item_images = [str(x) for x in item.fg_image if x][:4]
-        elif isinstance(item.fg_image, str) and item.fg_image != "string" and item.fg_image.strip():
-            item_images = [item.fg_image.strip()]
+        item_images = normalize_fg_image(item.fg_image)
 
     if not item_images:
         item_images = [get_image_for_material(txn.material_code, cat_name)]

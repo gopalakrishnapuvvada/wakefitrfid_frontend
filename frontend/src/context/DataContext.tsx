@@ -424,12 +424,27 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
          apiErr.message.includes('Duplicate') ||
          apiErr.message.includes('already exists') ||
          apiErr.message.includes('constraint violation') ||
+         apiErr.message.includes('Foreign Key') ||
+         apiErr.message.includes('foreign key') ||
+         apiErr.message.includes('Master Data') ||
+         apiErr.message.includes('Material Management') ||
          apiErr.message.includes('Conflict') ||
          apiErr.message.includes('409') ||
          apiErr.message.includes('400') ||
          apiErr.message.includes('required'))
       ) {
         throw apiErr;
+      }
+
+      // Foreign Key Validation: Material Code MUST exist in Master Data Management
+      const cleanMatCode = (scanData.qr1MaterialCode || '').trim().toUpperCase();
+      const existsInMaster = masterData.some(
+        m => m.materialCode.trim().toUpperCase() === cleanMatCode || m.partNumber?.trim().toUpperCase() === cleanMatCode
+      );
+      if (!existsInMaster) {
+        throw new Error(
+          `Foreign Key Constraint Failed: Material Code '${scanData.qr1MaterialCode}' is not present in Master Data Management. Please register this item in Material Management first.`
+        );
       }
 
       // If backend is offline, ensure local duplicate triplet is also strictly prevented

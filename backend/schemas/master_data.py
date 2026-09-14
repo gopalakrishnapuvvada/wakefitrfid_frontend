@@ -59,14 +59,30 @@ class DimensionsSchema(BaseModel):
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
+def is_valid_image_url(url: Any) -> bool:
+    """Checks if a string is a valid image URL/path and NOT a raw base64 data blob."""
+    if not url or not isinstance(url, str):
+        return False
+    u = url.strip()
+    if not u or u == "string" or u.lower() == "null":
+        return False
+    # Strictly reject Base64 data URIs or binary dumps
+    if u.startswith("data:") or "base64" in u.lower() or len(u) > 500:
+        return False
+    # Accept HTTP/HTTPS URLs or valid relative asset paths (e.g. /products/...)
+    if u.startswith("http://") or u.startswith("https://") or u.startswith("/"):
+        return True
+    return False
+
+
 def normalize_fg_image(val: Any) -> list[str]:
-    """Ensures fg_image is a list of up to 4 valid image URL strings."""
+    """Ensures fg_image is a list of up to 4 valid image URL strings (HTTP/HTTPS or relative path). Rejects raw Base64 data."""
     if val is None:
         return []
+    raw_list: list[Any] = []
     if isinstance(val, list):
-        res = [str(x).strip() for x in val if x and str(x).strip()]
-        return res[:4]
-    if isinstance(val, str):
+        raw_list = val
+    elif isinstance(val, str):
         v = val.strip()
         if not v or v.lower() == "null" or v == "string":
             return []
@@ -74,11 +90,17 @@ def normalize_fg_image(val: Any) -> list[str]:
             try:
                 parsed = json.loads(v)
                 if isinstance(parsed, list):
-                    return [str(x).strip() for x in parsed if x and str(x).strip()][:4]
+                    raw_list = parsed
+                else:
+                    raw_list = [v]
             except Exception:
-                pass
-        return [v]
-    return []
+                raw_list = [v]
+        else:
+            raw_list = [v]
+
+    res = [str(x).strip() for x in raw_list if is_valid_image_url(x)]
+    return res[:4]
+
 
 
 # --- Master Data Item Schemas ---

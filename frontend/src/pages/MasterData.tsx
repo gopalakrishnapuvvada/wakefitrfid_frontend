@@ -89,7 +89,11 @@ export const MasterData: React.FC = () => {
       } else if (typeof item.fgImage === 'string' && item.fgImage && item.fgImage !== NO_IMAGE_FALLBACK) {
         existingImgs = [item.fgImage];
       }
-      setModalImages(existingImgs.filter(Boolean).slice(0, 4));
+      setModalImages(
+        existingImgs
+          .filter(u => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.toLowerCase().includes('base64') && u.length <= 500)
+          .slice(0, 4)
+      );
 
       form.setFieldsValue({
         materialCode: item.materialCode,
@@ -134,6 +138,17 @@ export const MasterData: React.FC = () => {
       return;
     }
 
+    // Strictly reject Base64 data URIs or binary dumps
+    if (url.startsWith('data:') || url.toLowerCase().includes('base64') || url.length > 500) {
+      message.error('Raw Base64 image data is not allowed. Please enter an HTTP/HTTPS image URL (e.g. AWS S3 link) or relative path (e.g. /products/mattress_1.jpg).');
+      return;
+    }
+
+    if (!url.startsWith('http://') && !url.startsWith('https://') && !url.startsWith('/')) {
+      message.warning('Image link must start with http://, https://, or /');
+      return;
+    }
+
     if (modalImages.length >= 4) {
       message.warning('Maximum 4 image URLs allowed per Finished Good SKU.');
       return;
@@ -158,7 +173,9 @@ export const MasterData: React.FC = () => {
     try {
       const values = await form.validateFields();
       
-      const finalImages = modalImages.slice(0, 4);
+      const finalImages = modalImages
+        .filter(u => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.toLowerCase().includes('base64') && u.length <= 500)
+        .slice(0, 4);
 
       const payload: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'> = {
         fgImage: finalImages.length > 0 ? finalImages : [NO_IMAGE_FALLBACK],

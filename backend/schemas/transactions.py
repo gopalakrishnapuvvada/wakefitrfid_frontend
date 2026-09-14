@@ -98,25 +98,25 @@ class TransactionResponse(BaseModel):
             # Fallback image resolution based on material code and category
             mat_upper = (data.material_code or "").upper()
             cat_lower = (str(cat_name) or "").lower()
+            prod_img = None
             if item and item.fg_image:
-                if isinstance(item.fg_image, list) and len(item.fg_image) > 0:
-                    prod_img = str(item.fg_image[0])
-                elif isinstance(item.fg_image, str) and item.fg_image != "string" and item.fg_image.strip():
-                    prod_img = item.fg_image.strip()
+                from schemas.master_data import normalize_fg_image
+                norm_imgs = normalize_fg_image(item.fg_image)
+                if norm_imgs:
+                    prod_img = norm_imgs[0]
+            if not prod_img:
+                if "REC" in mat_upper or "recliner" in cat_lower:
+                    prod_img = "/products/recliner_1.jpg"
+                elif "SOF" in mat_upper or "sofa" in cat_lower:
+                    prod_img = "/products/sofa_1.jpg"
+                elif "BED" in mat_upper or "bed" in cat_lower:
+                    prod_img = "/products/bed_1.jpg"
+                elif "PIL" in mat_upper or "pillow" in cat_lower:
+                    prod_img = "/products/pillow_1.jpg"
+                elif "MAT-756" in mat_upper or "756006" in mat_upper:
+                    prod_img = "/products/mattress_2.jpg"
                 else:
                     prod_img = "/products/mattress_1.jpg"
-            elif "REC" in mat_upper or "recliner" in cat_lower:
-                prod_img = "/products/recliner_1.jpg"
-            elif "SOF" in mat_upper or "sofa" in cat_lower:
-                prod_img = "/products/sofa_1.jpg"
-            elif "BED" in mat_upper or "bed" in cat_lower:
-                prod_img = "/products/bed_1.jpg"
-            elif "PIL" in mat_upper or "pillow" in cat_lower:
-                prod_img = "/products/pillow_1.jpg"
-            elif "MAT-756" in mat_upper or "756006" in mat_upper:
-                prod_img = "/products/mattress_2.jpg"
-            else:
-                prod_img = "/products/mattress_1.jpg"
 
             time_dt = data.product_validation_timestamp or data.created_on
             if time_dt:

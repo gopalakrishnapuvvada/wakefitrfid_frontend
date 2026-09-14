@@ -68,11 +68,13 @@ export const ProductValidation: React.FC = () => {
     lastProcessedScanIdRef.current = lastProcessedScanId;
   }, [lastProcessedScanId]);
 
-  // Helper: Resolve full MasterDataItem and product images for a Material Code
+  // Helper: Resolve full MasterDataItem and product images for a Material Code (Foreign Key constraint)
   const resolveFgItem = (matVal: string, fallbackItem?: any): MasterDataItem | null => {
     if (!matVal) return null;
     const cleanMat = matVal.trim().toUpperCase();
-    const matchedFromCatalog = masterData.find(m => m.materialCode.toUpperCase() === cleanMat);
+    const matchedFromCatalog = masterData.find(
+      m => m.materialCode.toUpperCase() === cleanMat || m.partNumber?.toUpperCase() === cleanMat
+    );
 
     const extractFirstImage = (img: string | string[] | undefined | null): string | null => {
       if (!img) return null;
@@ -81,13 +83,12 @@ export const ProductValidation: React.FC = () => {
       return null;
     };
 
-    const resolvedImage: string =
-      extractFirstImage(matchedFromCatalog?.fgImage) ||
-      extractFirstImage(fallbackItem?.fgImage) ||
-      getProductImageByMaterial(matVal, fallbackItem?.category || matchedFromCatalog?.category) ||
-      '/images/no_image.svg';
-
     if (matchedFromCatalog) {
+      const resolvedImage: string =
+        extractFirstImage(matchedFromCatalog.fgImage) ||
+        getProductImageByMaterial(matVal, matchedFromCatalog.category) ||
+        '/images/no_image.svg';
+
       return {
         ...matchedFromCatalog,
         fgImage: resolvedImage,
@@ -95,43 +96,22 @@ export const ProductValidation: React.FC = () => {
       };
     }
 
-    if (fallbackItem) {
+    // Only accept fallback if it is a real database record from API (not a synthetic temp item)
+    if (fallbackItem && fallbackItem.id && !String(fallbackItem.id).startsWith('temp-')) {
+      const resolvedImage: string =
+        extractFirstImage(fallbackItem.fgImage) ||
+        getProductImageByMaterial(matVal, fallbackItem.category) ||
+        '/images/no_image.svg';
+
       return {
-        id: fallbackItem.id || 'temp-id',
-        materialCode: fallbackItem.materialCode || matVal,
-        partNumber: fallbackItem.partNumber || `FG-${matVal}`,
-        category: fallbackItem.category || 'Finished Goods',
-        model: fallbackItem.model || '',
-        productDescription: fallbackItem.productDescription || '',
-        dimensions: fallbackItem.dimensions || { lengthMm: 0, widthMm: 0, heightMm: 0 },
-        netWeight: fallbackItem.netWeight || 25,
-        grossWeight: fallbackItem.grossWeight || 27.5,
-        packageType: fallbackItem.packageType || 'Box',
-        status: fallbackItem.status || 'Active',
-        productName: fallbackItem.productName || `FG Item (${matVal})`,
+        ...fallbackItem,
         fgImage: resolvedImage,
         images: fallbackItem.images?.length ? fallbackItem.images : [resolvedImage],
-        createdAt: '',
       } as MasterDataItem;
     }
 
-    return {
-      id: `temp-${cleanMat}`,
-      materialCode: cleanMat,
-      partNumber: `FG-${cleanMat}`,
-      category: 'Finished Goods',
-      model: 'Standard FG Model',
-      productDescription: `Finished Good (${cleanMat})`,
-      productName: `FG Item (${cleanMat})`,
-      dimensions: { lengthMm: 1981, widthMm: 1829, heightMm: 203 },
-      netWeight: 25,
-      grossWeight: 27.5,
-      packageType: 'Standard Package',
-      status: 'Active',
-      fgImage: resolvedImage,
-      images: [resolvedImage],
-      createdAt: '',
-    } as MasterDataItem;
+    // Strict Foreign Key Enforcement: Return null if not present in Master Data Management
+    return null;
   };
 
   // State update commit: creates new state and updates currentScan + currentScanRef
@@ -201,6 +181,7 @@ export const ProductValidation: React.FC = () => {
     matchedFgItem?: any;
     rfidProtocol?: string;
     rfidSignalRssi?: string;
+    materialInMaster?: boolean;
     alreadyCommitted?: boolean;
     existingTransaction?: any;
   }) => {
@@ -300,6 +281,59 @@ export const ProductValidation: React.FC = () => {
         ),
       });
       return;
+    }
+
+    // Check Foreign Key Constraint: Material Code MUST exist in Master Data Management
+    if (incMat) {
+      const cleanMat = incMat.toUpperCase();
+      const isMatInCatalog = masterData.some(
+        m => m.materialCode.toUpperCase() === cleanMat || m.partNumber?.toUpperCase() === cleanMat
+      ) || (incoming.matchedFgItem && !String(incoming.matchedFgItem.id).startsWith('temp-'));
+
+      if (!isMatInCatalog || incoming.materialInMaster === false) {
+        Modal.error({
+          title: (
+            <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
+              ⚠️ Material Code Not in Master Data Management
+            </span>
+          ),
+          icon: <CloseCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
+          centered: true,
+          width: 520,
+          okText: 'Acknowledge',
+          okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
+          content: (
+            <div style={{ marginTop: '12px' }}>
+              <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
+                The scanned Material Code <strong>does not exist in Master Data Management</strong>.
+              </p>
+              <div
+                style={{
+                  backgroundColor: isDark ? '#1e293b' : '#fef2f2',
+                  border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  fontSize: '13px',
+                  marginBottom: '12px',
+                }}
+              >
+                <div>
+                  <strong>Scanned Material Code:</strong>{' '}
+                  <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
+                    {incMat}
+                  </span>
+                </div>
+                <div style={{ marginTop: '6px' }}>
+                  <Tag color="error">FOREIGN KEY VIOLATION — NOT IN MASTER DATA</Tag>
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
+                This record cannot be inserted into the database. Please register this Material Code in Master Data Management first.
+              </div>
+            </div>
+          ),
+        });
+      }
     }
 
     const curRfid = (cur?.rfidUniqueId || '').trim();
@@ -505,6 +539,7 @@ export const ProductValidation: React.FC = () => {
             matchedFgItem: pending.matchedFgItem,
             rfidProtocol: pending.rfidProtocol,
             rfidSignalRssi: pending.rfidSignalRssi,
+            materialInMaster: pending.materialInMaster,
             alreadyCommitted: pending.alreadyCommitted,
             existingTransaction: pending.existingTransaction,
           });
@@ -694,7 +729,11 @@ export const ProductValidation: React.FC = () => {
       missingFields.push('RFID Tag');
     }
     if (!scan?.qr1MaterialCode || !scan.matchedFgItem || scan.qr1MaterialCode === 'INVALID-OR-UNREADABLE' || scan.qr1MaterialCode.includes('FAIL') || scan.qr1MaterialCode.includes('INVALID')) {
-      missingFields.push('Material Code');
+      if (scan?.qr1MaterialCode && !scan.matchedFgItem) {
+        missingFields.push('Material Code (Not in Master Data)');
+      } else {
+        missingFields.push('Material Code');
+      }
     }
     if (!scan?.qr2WorkOrderNo || scan.qr2WorkOrderNo === 'MISSING_WO_CODE' || scan.qr2WorkOrderNo.includes('FAIL') || scan.qr2WorkOrderNo.includes('INVALID')) {
       missingFields.push('Work Order No');
@@ -731,7 +770,61 @@ export const ProductValidation: React.FC = () => {
 
   // Queue Action: Marry RFID Tag ID + Material Code/Part Number + WO No. in SQLite DB
   const handleQueueTransaction = async () => {
-    if (!currentScan || !currentScan.readingSuccess || !currentScan.matchedFgItem) {
+    if (!currentScan) return;
+
+    // Strict foreign key pre-validation
+    const cleanMat = (currentScan.qr1MaterialCode || '').trim().toUpperCase();
+    const existsInMaster = masterData.some(
+      m => m.materialCode.toUpperCase() === cleanMat || m.partNumber?.toUpperCase() === cleanMat
+    ) || (currentScan.matchedFgItem && !String(currentScan.matchedFgItem.id).startsWith('temp-'));
+
+    if (!existsInMaster || !currentScan.matchedFgItem) {
+      Modal.error({
+        title: (
+          <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
+            ⚠️ Material Code Not in Master Data Management
+          </span>
+        ),
+        icon: <CloseCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
+        centered: true,
+        width: 520,
+        okText: 'Acknowledge',
+        okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
+        content: (
+          <div style={{ marginTop: '12px' }}>
+            <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
+              Cannot insert into SQLite database: Material Code <strong>'{currentScan.qr1MaterialCode}'</strong> is not present in Master Data Management.
+            </p>
+            <div
+              style={{
+                backgroundColor: isDark ? '#1e293b' : '#fef2f2',
+                border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
+                borderRadius: '8px',
+                padding: '12px 16px',
+                fontSize: '13px',
+                marginBottom: '12px',
+              }}
+            >
+              <div>
+                <strong>Material Code:</strong>{' '}
+                <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
+                  {currentScan.qr1MaterialCode}
+                </span>
+              </div>
+              <div style={{ marginTop: '6px' }}>
+                <Tag color="error">FOREIGN KEY RELATIONSHIP REQUIRED</Tag>
+              </div>
+            </div>
+            <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
+              Under database foreign key constraints, this item cannot be inserted until it is registered in Material Management.
+            </div>
+          </div>
+        ),
+      });
+      return;
+    }
+
+    if (!currentScan.readingSuccess) {
       message.error('Cannot queue: Label reading is incomplete or failed.');
       return;
     }
@@ -775,7 +868,57 @@ export const ProductValidation: React.FC = () => {
       });
     } catch (err: any) {
       setIsQueueing(false);
-      message.error(err?.message || 'Failed to communicate with Python SQLite service.');
+      const errMsg = err?.message || 'Failed to communicate with Python SQLite service.';
+      if (
+        errMsg.toLowerCase().includes('foreign key') ||
+        errMsg.toLowerCase().includes('master data') ||
+        errMsg.toLowerCase().includes('material management')
+      ) {
+        Modal.error({
+          title: (
+            <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
+              ⚠️ Database Foreign Key Constraint Failed
+            </span>
+          ),
+          icon: <CloseCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
+          centered: true,
+          width: 520,
+          okText: 'Acknowledge',
+          okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
+          content: (
+            <div style={{ marginTop: '12px' }}>
+              <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
+                Database rejection: The Material Code is <strong>not present in Master Data Management</strong>.
+              </p>
+              <div
+                style={{
+                  backgroundColor: isDark ? '#1e293b' : '#fef2f2',
+                  border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  fontSize: '13px',
+                  marginBottom: '12px',
+                }}
+              >
+                <div>
+                  <strong>Material Code:</strong>{' '}
+                  <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
+                    {currentScan?.qr1MaterialCode}
+                  </span>
+                </div>
+                <div style={{ marginTop: '6px' }}>
+                  <Tag color="error">SQLITE FOREIGN KEY VIOLATION</Tag>
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
+                {errMsg}
+              </div>
+            </div>
+          ),
+        });
+      } else {
+        message.error(errMsg);
+      }
     }
   };
 
@@ -942,20 +1085,24 @@ export const ProductValidation: React.FC = () => {
             <div
               style={{
                 backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                border: `1px solid ${activeScan.qr1MaterialCode ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
+                border: `1px solid ${activeScan.qr1MaterialCode ? (activeScan.matchedFgItem ? (isDark ? '#334155' : '#e2e8f0') : '#dc2626') : (isDark ? '#78350f' : '#fef3c7')}`,
                 borderRadius: '8px',
                 padding: '14px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <QrcodeOutlined style={{ color: activeScan.qr1MaterialCode ? '#0284C7' : '#f59e0b', fontSize: '16px' }} />
+                  <QrcodeOutlined style={{ color: activeScan.qr1MaterialCode ? (activeScan.matchedFgItem ? '#0284C7' : '#dc2626') : '#f59e0b', fontSize: '16px' }} />
                   <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     2. QR Code 1 (Material Code) ➔ Configured FG Master Data
                   </strong>
                 </div>
-                <Tag color={activeScan.qr1MaterialCode ? '#0284C7' : 'gold'} style={{ fontWeight: 700 }}>
-                  {activeScan.qr1MaterialCode ? `MATERIAL: ${activeScan.qr1MaterialCode}` : '⏳ AWAITING MATERIAL CODE SCAN'}
+                <Tag color={activeScan.qr1MaterialCode ? (activeScan.matchedFgItem ? '#0284C7' : 'error') : 'gold'} style={{ fontWeight: 700 }}>
+                  {activeScan.qr1MaterialCode
+                    ? (activeScan.matchedFgItem
+                        ? `MATERIAL: ${activeScan.qr1MaterialCode}`
+                        : `NOT IN MASTER: ${activeScan.qr1MaterialCode}`)
+                    : '⏳ AWAITING MATERIAL CODE SCAN'}
                 </Tag>
               </div>
 
@@ -1119,22 +1266,24 @@ export const ProductValidation: React.FC = () => {
               ) : (
                 <div
                   style={{
-                    backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                    backgroundColor: isDark ? '#1e293b' : (activeScan.qr1MaterialCode ? '#fef2f2' : '#ffffff'),
                     padding: '28px 16px',
                     borderRadius: '8px',
-                    border: `1px dashed ${activeScan.qr1MaterialCode ? '#f59e0b' : (isDark ? '#334155' : '#cbd5e1')}`,
+                    border: `1px dashed ${activeScan.qr1MaterialCode ? '#dc2626' : (isDark ? '#334155' : '#cbd5e1')}`,
                     textAlign: 'center',
                     color: '#94a3b8',
                   }}
                 >
-                  <BarcodeOutlined style={{ fontSize: '28px', color: activeScan.qr1MaterialCode ? '#f59e0b' : '#94a3b8', marginBottom: '8px' }} />
-                  <div style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
+                  <BarcodeOutlined style={{ fontSize: '28px', color: activeScan.qr1MaterialCode ? '#dc2626' : '#94a3b8', marginBottom: '8px' }} />
+                  <div style={{ fontSize: '13px', fontWeight: 700, color: activeScan.qr1MaterialCode ? '#dc2626' : (isDark ? '#cbd5e1' : '#475569') }}>
                     {activeScan.qr1MaterialCode 
-                      ? `Material Code [${activeScan.qr1MaterialCode}] captured (Item not found in master catalog)`
+                      ? `⚠️ Material Code [${activeScan.qr1MaterialCode}] is NOT registered in Master Data Management!`
                       : 'Waiting for Material Code QR/Barcode scan...'}
                   </div>
-                  <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                    Scan QR code 1 on product label using your RS38 handheld to display product details.
+                  <div style={{ fontSize: '11px', color: activeScan.qr1MaterialCode ? '#b91c1c' : '#64748b', marginTop: '4px' }}>
+                    {activeScan.qr1MaterialCode
+                      ? 'Foreign Key Constraint: This material code must exist in Master Data before it can be validated or inserted into SQLite.'
+                      : 'Scan QR code 1 on product label using your RS38 handheld to display product details.'}
                   </div>
                 </div>
               )}
