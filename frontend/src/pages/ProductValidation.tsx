@@ -49,10 +49,6 @@ export const ProductValidation: React.FC = () => {
   const [lastCommittedTxn, setLastCommittedTxn] = useState<MarriedTransaction | null>(null);
   const [searchText, setSearchText] = useState('');
 
-  // Manual Scan Input Form state
-  const [manualRfid, setManualRfid] = useState('');
-  const [manualMatCode, setManualMatCode] = useState('');
-  const [manualWoNo, setManualWoNo] = useState('');
 
   // Initial Production Scanned State (starts null, populated via incoming RFID/QR scan events or trigger)
   const [currentScan, setCurrentScan] = useState<ScannedLabelData | null>(null);
@@ -692,22 +688,21 @@ export const ProductValidation: React.FC = () => {
   };
 
   // Helper to evaluate Read Success / Read Failed (Material code, Work Order, RFID ID)
-  const getReadStatus = () => {
-    if (!currentScan) return null;
+  const getReadStatus = (scan: ScannedLabelData | null = currentScan) => {
     const missingFields: string[] = [];
-    if (!currentScan.rfidUniqueId || currentScan.rfidUniqueId === 'NOT_DETECTED' || currentScan.rfidUniqueId.includes('FAIL') || currentScan.rfidUniqueId.includes('INVALID')) {
+    if (!scan?.rfidUniqueId || scan.rfidUniqueId === 'NOT_DETECTED' || scan.rfidUniqueId.includes('FAIL') || scan.rfidUniqueId.includes('INVALID')) {
       missingFields.push('RFID Tag');
     }
-    if (!currentScan.qr1MaterialCode || !currentScan.matchedFgItem || currentScan.qr1MaterialCode === 'INVALID-OR-UNREADABLE' || currentScan.qr1MaterialCode.includes('FAIL') || currentScan.qr1MaterialCode.includes('INVALID')) {
+    if (!scan?.qr1MaterialCode || !scan.matchedFgItem || scan.qr1MaterialCode === 'INVALID-OR-UNREADABLE' || scan.qr1MaterialCode.includes('FAIL') || scan.qr1MaterialCode.includes('INVALID')) {
       missingFields.push('Material Code');
     }
-    if (!currentScan.qr2WorkOrderNo || currentScan.qr2WorkOrderNo === 'MISSING_WO_CODE' || currentScan.qr2WorkOrderNo.includes('FAIL') || currentScan.qr2WorkOrderNo.includes('INVALID')) {
+    if (!scan?.qr2WorkOrderNo || scan.qr2WorkOrderNo === 'MISSING_WO_CODE' || scan.qr2WorkOrderNo.includes('FAIL') || scan.qr2WorkOrderNo.includes('INVALID')) {
       missingFields.push('Work Order No');
     }
 
     const capturedCount = 3 - missingFields.length;
 
-    if (missingFields.length === 0 && currentScan.readingSuccess) {
+    if (capturedCount === 3 && scan?.readingSuccess) {
       return {
         isSuccess: true,
         title: 'Ready for Queue (3/3 Verified)',
@@ -715,12 +710,20 @@ export const ProductValidation: React.FC = () => {
         capturedCount: 3,
         missingFields,
       };
-    } else {
+    } else if (capturedCount > 0) {
       return {
         isSuccess: false,
         title: `Scan In Progress (${capturedCount}/3 Captured)`,
         description: `Waiting for: ${missingFields.join(' and ')}. Trigger RS38 handheld reader to scan the remaining code(s).`,
         capturedCount,
+        missingFields,
+      };
+    } else {
+      return {
+        isSuccess: false,
+        title: 'Listening for Live Scanner Data (0/3 Captured)',
+        description: `Active Device: ${activeDevice?.name || 'CIPHER RS38 Handheld Reader'}. Awaiting live barcode/RFID scan events from device.`,
+        capturedCount: 0,
         missingFields,
       };
     }
@@ -797,14 +800,37 @@ export const ProductValidation: React.FC = () => {
             <span style={{ fontSize: '16px', fontWeight: 800 }}>
               Captured Finished Good Label Analysis
             </span>
-            {currentScan && (
-              <Tag 
-                color={getReadStatus()?.isSuccess ? 'success' : 'warning'}
-                style={{ fontSize: '12px', fontWeight: 800, padding: '3px 14px', borderRadius: '12px' }}
-              >
-                {getReadStatus()?.isSuccess ? '✓ ALL 3 VERIFIED' : `SCANNING IN PROGRESS (${getReadStatus()?.capturedCount}/3)`}
-              </Tag>
-            )}
+            {(() => {
+              const status = getReadStatus();
+              if (status.isSuccess) {
+                return (
+                  <Tag 
+                    color="success" 
+                    style={{ fontSize: '12px', fontWeight: 800, padding: '3px 14px', borderRadius: '12px' }}
+                  >
+                    ✓ ALL 3 VERIFIED
+                  </Tag>
+                );
+              }
+              if (status.capturedCount > 0) {
+                return (
+                  <Tag 
+                    color="warning" 
+                    style={{ fontSize: '12px', fontWeight: 800, padding: '3px 14px', borderRadius: '12px' }}
+                  >
+                    SCANNING IN PROGRESS ({status.capturedCount}/3)
+                  </Tag>
+                );
+              }
+              return (
+                <Tag 
+                  color="processing" 
+                  style={{ fontSize: '12px', fontWeight: 800, padding: '3px 14px', borderRadius: '12px' }}
+                >
+                  🟢 LIVE SCANNER ACTIVE (0/3)
+                </Tag>
+              );
+            })()}
           </div>
         }
         bordered={false}
@@ -814,26 +840,80 @@ export const ProductValidation: React.FC = () => {
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)' 
         }}
       >
-        {currentScan ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+        {/* Previous Commit Confirmation Feedback */}
+        {lastCommittedTxn && (
+          <div
+            style={{
+              padding: '12px 18px',
+              backgroundColor: '#10B98115',
+              borderRadius: '8px',
+              border: '1px solid #10B981',
+              fontSize: '13px',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+            }}
+          >
+            <div>
+              <div style={{ fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                <CheckCircleOutlined />
+                <span>Previous Item Successfully Committed & Saved in SQLite DB!</span>
+              </div>
+              <div style={{ marginTop: '4px', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
+                <strong>{lastCommittedTxn.transactionId}</strong> — RFID:{' '}
+                <span style={{ color: '#0284C7', fontFamily: 'monospace' }}>
+                  {lastCommittedTxn.rfidUniqueId}
+                </span>{' '}
+                ⮀ Material:{' '}
+                <span style={{ fontFamily: 'monospace' }}>
+                  {lastCommittedTxn.materialCode}
+                </span>{' '}
+                ⮀ WO:{' '}
+                <span style={{ fontFamily: 'monospace' }}>
+                  {lastCommittedTxn.workOrderNo}
+                </span>
+              </div>
+            </div>
+            <Tag color="success" style={{ fontWeight: 800 }}>STORED IN SQLITE</Tag>
+          </div>
+        )}
+
+        {(() => {
+          const activeScan = currentScan || {
+            readingSuccess: false,
+            rfidUniqueId: '',
+            rfidProtocol: 'EPC Gen2 / ISO 18000-6C (UHF 865.7 MHz)',
+            rfidSignalRssi: 'Awaiting RF Signal',
+            qr1MaterialCode: '',
+            qr2WorkOrderNo: '',
+            matchedFgItem: null,
+            scannedAt: '',
+            deviceId: activeDevice?.id || 'dev-cpr-01',
+            deviceName: activeDevice?.name || 'CIPHER RS38 Handheld Reader',
+            isQueued: false,
+          };
+
+          return (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* 1. Factory Generated RFID Tag Unique ID */}
             <div
               style={{
                 backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                border: `1px solid ${currentScan.rfidUniqueId ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
+                border: `1px solid ${activeScan.rfidUniqueId ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
                 borderRadius: '8px',
                 padding: '14px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <ThunderboltOutlined style={{ color: currentScan.rfidUniqueId ? '#E53935' : '#f59e0b', fontSize: '16px' }} />
+                  <ThunderboltOutlined style={{ color: activeScan.rfidUniqueId ? '#E53935' : '#f59e0b', fontSize: '16px' }} />
                   <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     1. Factory Generated RFID Tag Unique ID
                   </strong>
                 </div>
-                <Tag color={currentScan.rfidUniqueId ? 'green' : 'gold'}>
-                  {currentScan.rfidUniqueId ? (currentScan.rfidSignalRssi || '-44 dBm (Strong)') : '⏳ AWAITING RFID SCAN'}
+                <Tag color={activeScan.rfidUniqueId ? 'green' : 'gold'}>
+                  {activeScan.rfidUniqueId ? (activeScan.rfidSignalRssi || '-44 dBm (Strong)') : '⏳ AWAITING RFID SCAN'}
                 </Tag>
               </div>
 
@@ -842,19 +922,19 @@ export const ProductValidation: React.FC = () => {
                   fontFamily: 'monospace',
                   fontSize: '15px',
                   fontWeight: 800,
-                  color: currentScan.rfidUniqueId ? '#0284C7' : '#94a3b8',
+                  color: activeScan.rfidUniqueId ? '#0284C7' : '#94a3b8',
                   letterSpacing: '1.5px',
                   backgroundColor: isDark ? '#1e293b' : '#ffffff',
                   padding: '10px 14px',
                   borderRadius: '6px',
-                  border: `1px dashed ${currentScan.rfidUniqueId ? '#0284C7' : (isDark ? '#78350f' : '#f59e0b')}`,
+                  border: `1px dashed ${activeScan.rfidUniqueId ? '#0284C7' : (isDark ? '#78350f' : '#f59e0b')}`,
                   wordBreak: 'break-all',
                 }}
               >
-                {currentScan.rfidUniqueId || '--- Waiting for RFID Tag scan event ---'}
+                {activeScan.rfidUniqueId || '--- Waiting for RFID Tag scan event ---'}
               </div>
               <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
-                Protocol: {currentScan.rfidProtocol || 'EPC Gen2 / ISO 18000-6C (UHF 865.7 MHz)'}
+                Protocol: {activeScan.rfidProtocol || 'EPC Gen2 / ISO 18000-6C (UHF 865.7 MHz)'}
               </div>
             </div>
 
@@ -862,24 +942,24 @@ export const ProductValidation: React.FC = () => {
             <div
               style={{
                 backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                border: `1px solid ${currentScan.qr1MaterialCode ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
+                border: `1px solid ${activeScan.qr1MaterialCode ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
                 borderRadius: '8px',
                 padding: '14px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <QrcodeOutlined style={{ color: currentScan.qr1MaterialCode ? '#0284C7' : '#f59e0b', fontSize: '16px' }} />
+                  <QrcodeOutlined style={{ color: activeScan.qr1MaterialCode ? '#0284C7' : '#f59e0b', fontSize: '16px' }} />
                   <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     2. QR Code 1 (Material Code) ➔ Configured FG Master Data
                   </strong>
                 </div>
-                <Tag color={currentScan.qr1MaterialCode ? '#0284C7' : 'gold'} style={{ fontWeight: 700 }}>
-                  {currentScan.qr1MaterialCode ? `MATERIAL: ${currentScan.qr1MaterialCode}` : '⏳ AWAITING MATERIAL CODE SCAN'}
+                <Tag color={activeScan.qr1MaterialCode ? '#0284C7' : 'gold'} style={{ fontWeight: 700 }}>
+                  {activeScan.qr1MaterialCode ? `MATERIAL: ${activeScan.qr1MaterialCode}` : '⏳ AWAITING MATERIAL CODE SCAN'}
                 </Tag>
               </div>
 
-              {currentScan.qr1MaterialCode && currentScan.matchedFgItem ? (
+              {activeScan.qr1MaterialCode && activeScan.matchedFgItem ? (
                 <div
                   style={{
                     backgroundColor: isDark ? '#1e293b' : '#ffffff',
@@ -909,12 +989,12 @@ export const ProductValidation: React.FC = () => {
                         >
                           {(() => {
                             let imgs: string[] = [];
-                            if (Array.isArray(currentScan.matchedFgItem.images) && currentScan.matchedFgItem.images.length > 0) {
-                              imgs = currentScan.matchedFgItem.images;
-                            } else if (Array.isArray(currentScan.matchedFgItem.fgImage) && currentScan.matchedFgItem.fgImage.length > 0) {
-                              imgs = currentScan.matchedFgItem.fgImage;
-                            } else if (typeof currentScan.matchedFgItem.fgImage === 'string' && currentScan.matchedFgItem.fgImage) {
-                              imgs = [currentScan.matchedFgItem.fgImage];
+                            if (Array.isArray(activeScan.matchedFgItem.images) && activeScan.matchedFgItem.images.length > 0) {
+                              imgs = activeScan.matchedFgItem.images;
+                            } else if (Array.isArray(activeScan.matchedFgItem.fgImage) && activeScan.matchedFgItem.fgImage.length > 0) {
+                              imgs = activeScan.matchedFgItem.fgImage;
+                            } else if (typeof activeScan.matchedFgItem.fgImage === 'string' && activeScan.matchedFgItem.fgImage) {
+                              imgs = [activeScan.matchedFgItem.fgImage];
                             } else {
                               imgs = ['/images/no_image.svg'];
                             }
@@ -934,7 +1014,7 @@ export const ProductValidation: React.FC = () => {
                               >
                                 <img
                                   src={imgSrc}
-                                  alt={`${currentScan.matchedFgItem?.productName} - View ${idx + 1}`}
+                                  alt={`${activeScan.matchedFgItem?.productName} - View ${idx + 1}`}
                                   style={{
                                     width: '100%',
                                     height: '100%',
@@ -973,17 +1053,17 @@ export const ProductValidation: React.FC = () => {
                         <div>
                           <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
                             <Tag color="cyan" style={{ margin: 0, fontWeight: 700 }}>
-                              {currentScan.matchedFgItem.category}
+                              {activeScan.matchedFgItem.category}
                             </Tag>
                             <Tag color="green" style={{ margin: 0, fontWeight: 700 }}>
-                              {currentScan.matchedFgItem.status}
+                              {activeScan.matchedFgItem.status}
                             </Tag>
                           </div>
                           <div style={{ fontSize: '18px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
-                            {currentScan.matchedFgItem.productName}
+                            {activeScan.matchedFgItem.productName}
                           </div>
                           <div style={{ fontSize: '13px', color: '#64748b' }}>
-                            Part Number: <strong style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>{currentScan.matchedFgItem.partNumber}</strong>
+                            Part Number: <strong style={{ color: isDark ? '#f8fafc' : '#0f172a' }}>{activeScan.matchedFgItem.partNumber}</strong>
                           </div>
                         </div>
 
@@ -1001,35 +1081,35 @@ export const ProductValidation: React.FC = () => {
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Dimensions (LxWxH):</span>
                             <strong>
-                              {currentScan.matchedFgItem.dimensions.lengthMm} x {currentScan.matchedFgItem.dimensions.widthMm} x {currentScan.matchedFgItem.dimensions.heightMm} mm
+                              {activeScan.matchedFgItem.dimensions.lengthMm} x {activeScan.matchedFgItem.dimensions.widthMm} x {activeScan.matchedFgItem.dimensions.heightMm} mm
                             </strong>
                           </div>
 
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Net / Gross Weight:</span>
                             <strong>
-                              {currentScan.matchedFgItem.netWeight} kg / {currentScan.matchedFgItem.grossWeight} kg
+                              {activeScan.matchedFgItem.netWeight} kg / {activeScan.matchedFgItem.grossWeight} kg
                             </strong>
                           </div>
 
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Package Type:</span>
-                            <strong>{currentScan.matchedFgItem.packageType}</strong>
+                            <strong>{activeScan.matchedFgItem.packageType}</strong>
                           </div>
 
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Color Variant:</span>
-                            <strong>{currentScan.matchedFgItem.colorVariant}</strong>
+                            <strong>{activeScan.matchedFgItem.colorVariant}</strong>
                           </div>
 
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Firmness Rating:</span>
-                            <strong>{currentScan.matchedFgItem.firmnessRating}</strong>
+                            <strong>{activeScan.matchedFgItem.firmnessRating}</strong>
                           </div>
 
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Warranty:</span>
-                            <strong>{currentScan.matchedFgItem.warrantyYears} Years Factory Warranty</strong>
+                            <strong>{activeScan.matchedFgItem.warrantyYears} Years Factory Warranty</strong>
                           </div>
                         </div>
                       </div>
@@ -1042,15 +1122,15 @@ export const ProductValidation: React.FC = () => {
                     backgroundColor: isDark ? '#1e293b' : '#ffffff',
                     padding: '28px 16px',
                     borderRadius: '8px',
-                    border: `1px dashed ${currentScan.qr1MaterialCode ? '#f59e0b' : (isDark ? '#334155' : '#cbd5e1')}`,
+                    border: `1px dashed ${activeScan.qr1MaterialCode ? '#f59e0b' : (isDark ? '#334155' : '#cbd5e1')}`,
                     textAlign: 'center',
                     color: '#94a3b8',
                   }}
                 >
-                  <BarcodeOutlined style={{ fontSize: '28px', color: currentScan.qr1MaterialCode ? '#f59e0b' : '#94a3b8', marginBottom: '8px' }} />
+                  <BarcodeOutlined style={{ fontSize: '28px', color: activeScan.qr1MaterialCode ? '#f59e0b' : '#94a3b8', marginBottom: '8px' }} />
                   <div style={{ fontSize: '13px', fontWeight: 600, color: isDark ? '#cbd5e1' : '#475569' }}>
-                    {currentScan.qr1MaterialCode 
-                      ? `Material Code [${currentScan.qr1MaterialCode}] captured (Item not found in master catalog)`
+                    {activeScan.qr1MaterialCode 
+                      ? `Material Code [${activeScan.qr1MaterialCode}] captured (Item not found in master catalog)`
                       : 'Waiting for Material Code QR/Barcode scan...'}
                   </div>
                   <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
@@ -1064,20 +1144,20 @@ export const ProductValidation: React.FC = () => {
             <div
               style={{
                 backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                border: `1px solid ${currentScan.qr2WorkOrderNo ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
+                border: `1px solid ${activeScan.qr2WorkOrderNo ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#fef3c7')}`,
                 borderRadius: '8px',
                 padding: '14px',
               }}
             >
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <FileTextOutlined style={{ color: currentScan.qr2WorkOrderNo ? '#8B5CF6' : '#f59e0b', fontSize: '16px' }} />
+                  <FileTextOutlined style={{ color: activeScan.qr2WorkOrderNo ? '#8B5CF6' : '#f59e0b', fontSize: '16px' }} />
                   <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                     3. QR Code 2 (Work Order Number - WO)
                   </strong>
                 </div>
-                <Tag color={currentScan.qr2WorkOrderNo ? 'purple' : 'gold'} style={{ fontWeight: 700 }}>
-                  {currentScan.qr2WorkOrderNo ? `WO: ${currentScan.qr2WorkOrderNo}` : '⏳ AWAITING WORK ORDER SCAN'}
+                <Tag color={activeScan.qr2WorkOrderNo ? 'purple' : 'gold'} style={{ fontWeight: 700 }}>
+                  {activeScan.qr2WorkOrderNo ? `WO: ${activeScan.qr2WorkOrderNo}` : '⏳ AWAITING WORK ORDER SCAN'}
                 </Tag>
               </div>
 
@@ -1086,14 +1166,14 @@ export const ProductValidation: React.FC = () => {
                   fontFamily: 'monospace',
                   fontSize: '14px',
                   fontWeight: 800,
-                  color: currentScan.qr2WorkOrderNo ? '#8B5CF6' : '#94a3b8',
+                  color: activeScan.qr2WorkOrderNo ? '#8B5CF6' : '#94a3b8',
                   backgroundColor: isDark ? '#1e293b' : '#ffffff',
                   padding: '10px 14px',
                   borderRadius: '6px',
-                  border: `1px dashed ${currentScan.qr2WorkOrderNo ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#f59e0b')}`,
+                  border: `1px dashed ${activeScan.qr2WorkOrderNo ? (isDark ? '#334155' : '#e2e8f0') : (isDark ? '#78350f' : '#f59e0b')}`,
                 }}
               >
-                {currentScan.qr2WorkOrderNo || '--- Waiting for Work Order barcode scan ---'}
+                {activeScan.qr2WorkOrderNo || '--- Waiting for Work Order barcode scan ---'}
               </div>
             </div>
 
@@ -1147,272 +1227,30 @@ export const ProductValidation: React.FC = () => {
                       size="large"
                       icon={isQueueing ? <LoadingOutlined /> : <CheckOutlined />}
                       loading={isQueueing}
-                      disabled={!status.isSuccess || currentScan.isQueued}
+                      disabled={!status.isSuccess || activeScan.isQueued}
                       style={{
-                        backgroundColor: currentScan.isQueued ? '#10B981' : (status.isSuccess ? '#E53935' : undefined),
-                        borderColor: currentScan.isQueued ? '#10B981' : (status.isSuccess ? '#E53935' : undefined),
+                        backgroundColor: activeScan.isQueued ? '#10B981' : (status.isSuccess ? '#E53935' : undefined),
+                        borderColor: activeScan.isQueued ? '#10B981' : (status.isSuccess ? '#E53935' : undefined),
                         height: '42px',
                         padding: '0 26px',
                         fontSize: '14px',
                         fontWeight: 800,
                         letterSpacing: '0.5px',
-                        boxShadow: status.isSuccess && !currentScan.isQueued ? '0 4px 14px rgba(229, 57, 53, 0.4)' : undefined,
+                        boxShadow: status.isSuccess && !activeScan.isQueued ? '0 4px 14px rgba(229, 57, 53, 0.4)' : undefined,
                         borderRadius: '8px',
                       }}
                       onClick={handleQueueTransaction}
                     >
-                      {currentScan.isQueued ? '✓ Queued & Saved' : (status.isSuccess ? 'Queue & Commit to DB' : `Queue (${status.capturedCount}/3 Scanned)`)}
+                      {activeScan.isQueued ? '✓ Queued & Saved' : (status.isSuccess ? 'Queue & Commit to DB' : `Queue (${status.capturedCount}/3 Scanned)`)}
                     </Button>
                   </Space>
                 </div>
               );
             })()}
-
-            {/* Manual Scan Input Row (accessible when scanning is in progress) */}
-            {!getReadStatus()?.isSuccess && (
-              <div
-                style={{
-                  padding: '12px 16px',
-                  backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                  border: `1px dashed ${isDark ? '#334155' : '#cbd5e1'}`,
-                  borderRadius: '8px',
-                }}
-              >
-                <div style={{ fontSize: '11px', fontWeight: 700, color: isDark ? '#94a3b8' : '#64748b', marginBottom: '8px', textTransform: 'uppercase' }}>
-                  Manual Input (If barcode is damaged or unreadable):
-                </div>
-                <Row gutter={[10, 10]} align="middle">
-                  <Col xs={24} sm={7}>
-                    <Input
-                      placeholder="Enter RFID ID..."
-                      value={manualRfid}
-                      onChange={e => setManualRfid(e.target.value)}
-                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                      allowClear
-                    />
-                  </Col>
-                  <Col xs={24} sm={7}>
-                    <Input
-                      placeholder="Enter Material Code..."
-                      value={manualMatCode}
-                      onChange={e => setManualMatCode(e.target.value)}
-                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                      allowClear
-                    />
-                  </Col>
-                  <Col xs={24} sm={6}>
-                    <Input
-                      placeholder="Enter Work Order..."
-                      value={manualWoNo}
-                      onChange={e => setManualWoNo(e.target.value)}
-                      style={{ fontFamily: 'monospace', fontSize: '12px' }}
-                      allowClear
-                    />
-                  </Col>
-                  <Col xs={24} sm={4}>
-                    <Button
-                      type="default"
-                      block
-                      disabled={!manualRfid.trim() && !manualMatCode.trim() && !manualWoNo.trim()}
-                      style={{ fontWeight: 700 }}
-                      onClick={async () => {
-                        const payload: any = { deviceId: activeDevice?.id || 'dev-cpr-01' };
-                        if (manualRfid.trim()) payload.rfidUniqueId = manualRfid.trim();
-                        if (manualMatCode.trim()) payload.materialCode = manualMatCode.trim();
-                        if (manualWoNo.trim()) payload.workOrderNo = manualWoNo.trim();
-
-                        try {
-                          await fetch('/api/transactions/post_scan', {
-                            method: 'POST',
-                            headers: { 'Content-Type': 'application/json' },
-                            body: JSON.stringify(payload),
-                          });
-                        } catch (e) {
-                          console.error('Failed to post manual scan:', e);
-                        }
-                        setManualRfid('');
-                        setManualMatCode('');
-                        setManualWoNo('');
-                      }}
-                    >
-                      Submit Scan
-                    </Button>
-                  </Col>
-                </Row>
-              </div>
-            )}
-
-            {/* Commit Confirmation Feedback */}
-            {lastCommittedTxn && (
-              <div
-                style={{
-                  padding: '10px 14px',
-                  backgroundColor: '#10B98115',
-                  borderRadius: '6px',
-                  border: '1px solid #10B981',
-                  fontSize: '12px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                }}
-              >
-                <span>
-                  ✓ SQLite Committed: <strong>{lastCommittedTxn.transactionId}</strong> (WO: {lastCommittedTxn.workOrderNo} ⮀ {lastCommittedTxn.materialCode})
-                </span>
-                <Tag color="success">STORED IN SQLITE</Tag>
-              </div>
-            )}
           </div>
-        ) : (
-          <div
-            style={{
-              padding: '32px 24px',
-              textAlign: 'center',
-              backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-              borderRadius: '8px',
-              border: `1px dashed ${isDark ? '#334155' : '#cbd5e1'}`,
-            }}
-          >
-            {/* Commit Confirmation Feedback on Original Screen */}
-            {lastCommittedTxn && (
-              <div
-                style={{
-                  padding: '12px 18px',
-                  backgroundColor: '#10B98115',
-                  borderRadius: '8px',
-                  border: '1px solid #10B981',
-                  fontSize: '13px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '20px',
-                  maxWidth: '650px',
-                  margin: '0 auto 20px auto',
-                  textAlign: 'left',
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                    <CheckCircleOutlined />
-                    <span>Previous Item Successfully Committed & Saved!</span>
-                  </div>
-                  <div style={{ marginTop: '4px', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
-                    <strong>{lastCommittedTxn.transactionId}</strong> — RFID:{' '}
-                    <span style={{ color: '#0284C7', fontFamily: 'monospace' }}>
-                      {lastCommittedTxn.rfidUniqueId}
-                    </span>{' '}
-                    ⮀ Material:{' '}
-                    <span style={{ fontFamily: 'monospace' }}>
-                      {lastCommittedTxn.materialCode}
-                    </span>{' '}
-                    ⮀ WO:{' '}
-                    <span style={{ fontFamily: 'monospace' }}>
-                      {lastCommittedTxn.workOrderNo}
-                    </span>
-                  </div>
-                </div>
-                <Tag color="success" style={{ fontWeight: 800 }}>STORED IN SQLITE</Tag>
-              </div>
-            )}
-
-            <ThunderboltOutlined style={{ fontSize: '36px', color: '#94a3b8', marginBottom: '12px' }} />
-            <div style={{ fontSize: '15px', fontWeight: 700, color: isDark ? '#f8fafc' : '#1e293b' }}>
-              Awaiting Next Scan Event
-            </div>
-            <div style={{ fontSize: '12px', color: '#64748b', marginTop: '4px', maxWidth: '420px', margin: '4px auto 20px auto' }}>
-              Trigger your CIPHER RS38 handheld or stationary RFID reader, or enter the scan details manually below.
-            </div>
-
-            {/* ── Manual Entry Form ── */}
-            <div
-              style={{
-                backgroundColor: isDark ? '#1e293b' : '#ffffff',
-                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                borderRadius: '10px',
-                padding: '20px 24px',
-                maxWidth: '480px',
-                margin: '0 auto 16px auto',
-                textAlign: 'left',
-              }}
-            >
-              <div style={{ fontSize: '13px', fontWeight: 700, color: isDark ? '#94a3b8' : '#475569', marginBottom: '14px', letterSpacing: '0.5px' }}>
-                MANUAL SCAN ENTRY
-              </div>
-
-              {/* RFID */}
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                  Factory Generated RFID Tag Unique ID
-                </div>
-                <Input
-                  placeholder="e.g. E280117020002164A5B8012F"
-                  value={manualRfid}
-                  onChange={e => setManualRfid(e.target.value)}
-                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
-                  allowClear
-                />
-              </div>
-
-              {/* Material Code */}
-              <div style={{ marginBottom: '12px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                  Material Code
-                </div>
-                <Input
-                  placeholder="e.g. WAK-MAT-787208"
-                  value={manualMatCode}
-                  onChange={e => setManualMatCode(e.target.value)}
-                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
-                  allowClear
-                />
-              </div>
-
-              {/* Work Order No */}
-              <div style={{ marginBottom: '16px' }}>
-                <div style={{ fontSize: '11px', fontWeight: 600, color: '#64748b', marginBottom: '4px' }}>
-                  Work Order Number
-                </div>
-                <Input
-                  placeholder="e.g. WO-2026-0912-10021"
-                  value={manualWoNo}
-                  onChange={e => setManualWoNo(e.target.value)}
-                  style={{ fontFamily: 'monospace', fontSize: '13px' }}
-                  allowClear
-                />
-              </div>
-
-              <Button
-                type="primary"
-                block
-                disabled={!manualRfid.trim() && !manualMatCode.trim() && !manualWoNo.trim()}
-                style={{ backgroundColor: '#E53935', borderColor: '#E53935', fontWeight: 700 }}
-                onClick={async () => {
-                  const payload: any = { deviceId: activeDevice?.id || 'dev-cpr-01' };
-                  if (manualRfid.trim()) payload.rfidUniqueId = manualRfid.trim();
-                  if (manualMatCode.trim()) payload.materialCode = manualMatCode.trim();
-                  if (manualWoNo.trim()) payload.workOrderNo = manualWoNo.trim();
-
-                  try {
-                    await fetch('/api/transactions/post_scan', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify(payload),
-                    });
-                  } catch (e) {
-                    console.error('Failed to post manual scan:', e);
-                  }
-                  setManualRfid('');
-                  setManualMatCode('');
-                  setManualWoNo('');
-                }}
-              >
-                Submit Manual Scan
-              </Button>
-            </div>
-
-          </div>
-        )}
-      </Card>
+        );
+      })()}
+    </Card>
 
       {/* Married Transactions SQLite Database Queue Table */}
       <Card
