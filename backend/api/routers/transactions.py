@@ -4,7 +4,8 @@ from typing import Annotated, Any
 IST = timezone(timedelta(hours=5, minutes=30))
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_
+from sqlalchemy import or_, func
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
 from models.devices import Device
@@ -93,13 +94,49 @@ def create_marriage_transaction(
     payload: TransactionCreateRequest,
     db: Annotated[Session, Depends(get_db)],
 ):
+    clean_rfid = (payload.factory_rfid_tag_id or "").strip()
+    clean_mat = (payload.material_code or "").strip()
+    clean_wo = (payload.work_order_no or "").strip()
+
+    if not clean_rfid:
+        raise HTTPException(status_code=400, detail="Factory Generated RFID Tag Unique ID is required for marriage.")
+    if not clean_mat:
+        raise HTTPException(status_code=400, detail="Material Code is required for marriage.")
+    if not clean_wo:
+        raise HTTPException(status_code=400, detail="Work Order Number is required for marriage.")
+
+    # Check for duplicate composite combination (RFID Tag + Material Code + Work Order No)
+    existing_combo = (
+        db.query(TransactionData)
+        .filter(
+            TransactionData.factory_rfid_tag_id.ilike(clean_rfid),
+            TransactionData.material_code.ilike(clean_mat),
+            TransactionData.work_order_no.ilike(clean_wo),
+        )
+        .first()
+    )
+    if existing_combo:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Duplicate Scan Rejected: The combination of RFID Tag '{clean_rfid}', "
+                f"Material Code '{clean_mat}', and Work Order '{clean_wo}' is already registered "
+                f"in Transaction '{existing_combo.transaction_id}'. Same pair/triplet cannot repeat."
+            ),
+        )
+
     # Check master data item
     item = db.query(MasterDataItem).filter(MasterDataItem.material_code == payload.material_code).first()
+    item = db.query(MasterDataItem).filter(MasterDataItem.material_code == clean_mat).first()
 
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y%m%d")
-    count_today = db.query(TransactionData).count() + 1
-    txn_id = payload.transaction_id or f"TXN-{date_str}-{count_today:04d}"
+    max_sno = db.query(func.max(TransactionData.sno)).scalar() or 0
+    txn_seq = max(max_sno + 1, db.query(TransactionData).count() + 1)
+    txn_id = payload.transaction_id or f"TXN-{date_str}-{txn_seq:04d}"
+    while db.query(TransactionData).filter(TransactionData.transaction_id == txn_id).first():
+        txn_seq += 1
+        txn_id = f"TXN-{date_str}-{txn_seq:04d}"
 
     # Determine status
     is_dispatch = False
@@ -131,8 +168,31 @@ def create_marriage_transaction(
         created_by=payload.created_by or payload.operator_role or "Operator",
     )
 
-    db.add(new_txn)
-    db.commit()
+    try:
+        db.add(new_txn)
+        db.commit()
+    except IntegrityError as exc:
+        db.rollback()
+        err_msg = str(getattr(exc, "orig", exc))
+        if "uq_transactions_data_mat_wo_rfid" in err_msg or ("material_code" in err_msg and "factory_rfid_tag_id" in err_msg):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate Combination Rejected: The combination of RFID Tag '{clean_rfid}', Material Code '{clean_mat}', and Work Order '{clean_wo}' already exists.",
+            )
+        elif "transactions_data.transaction_id" in err_msg:
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Transaction ID collision detected ('{txn_id}'). Please retry submission.",
+            )
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Database constraint violation: {err_msg}",
+            )
+
+    # Reset pending scan buffer now that item is committed
+    global _latest_pending_scan
+    _latest_pending_scan = None
 
     return (
         db.query(TransactionData)
@@ -202,29 +262,17 @@ def post_can(
     db: Annotated[Session, Depends(get_db)],
 ):
     """
-    POST Operation: Takes Factory Generated RFID Tag Unique ID, Material Code, and Work Order Number - WO.
-    Does NOT save to transactions_data yet. Emits an incoming scan event that appears in the
-    Product Validation UI under 'Captured Finished Good Label Analysis'.
-    Saving to transactions_data occurs only when the user clicks 'Queue'.
+    POST Operation: Takes Factory Generated RFID Tag Unique ID, Material Code, or Work Order Number - WO.
+    Supports incremental/single-data scans (e.g. only workOrderNo, only materialCode, or only rfidUniqueId)
+    and merges them into the active pending scan buffer.
     """
     global _latest_pending_scan, _scan_counter
     _scan_counter += 1
 
-    clean_mat = payload.material_code.strip()
-    item = (
-        db.query(MasterDataItem)
-        .options(
-            joinedload(MasterDataItem.category),
-            joinedload(MasterDataItem.status),
-        )
-        .filter(
-            or_(
-                MasterDataItem.material_code.ilike(clean_mat),
-                MasterDataItem.part_number.ilike(clean_mat),
-            )
-        )
-        .first()
-    )
+    # Extract incoming values for this scan event
+    raw_rfid = (payload.factory_rfid_tag_id or "").strip()
+    raw_mat = (payload.material_code or "").strip()
+    raw_wo = (payload.work_order_no or "").strip()
 
     dev_id = payload.scanner_device or "dev-cpr-01"
     dev = db.query(Device).filter(
@@ -233,82 +281,137 @@ def post_can(
     dev_name = dev.display_name if dev else "CIPHER RS38 UHF Reader #01 (Station Line 1)"
     actual_dev_id = dev.device_id if dev else dev_id
 
-    cat_str = item.category.name if (item and item.category) else (item.category_id if item else None)
-    item_images: list[str] = []
-    if item and item.fg_image:
-        if isinstance(item.fg_image, list) and len(item.fg_image) > 0:
-            item_images = [str(x) for x in item.fg_image if x][:4]
-        elif isinstance(item.fg_image, str) and item.fg_image != "string" and item.fg_image.strip():
-            item_images = [item.fg_image.strip()]
-
-    if not item_images:
-        item_images = [get_image_for_material(clean_mat, cat_str)]
-
-    prod_image = item_images[0]
-
     matched_data = None
-    if item:
-        matched_data = {
-            "id": item.id,
-            "materialCode": item.material_code,
-            "partNumber": item.part_number,
-            "category": cat_str,
-            "model": item.model or "",
-            "productDescription": item.product_description or "",
-            "productName": item.product_description or item.model or f"FG Item ({item.material_code})",
-            "dimensions": {
-                "lengthMm": item.length_mm or 0,
-                "widthMm": item.width_mm or 0,
-                "heightMm": item.height_mm or 0,
-            },
-            "netWeight": float(item.net_weight or 25.0),
-            "grossWeight": float(item.gross_weight or 27.5),
-            "packageType": item.package_type or "Rolled Vacuum Box",
-            "status": item.status.name if item.status else "Active",
-            "fgImage": item_images,
-            "images": item_images,
-            "colorVariant": "Classic Grey / Navy",
-            "firmnessRating": "Medium Firm (Ortho)",
-            "warrantyYears": 10,
-            "rfidInlayType": "EPC Gen2 UHF 865-867 MHz",
-        }
-    else:
-        inferred_cat = "Recliner" if "REC" in clean_mat.upper() else "Sofa" if "SOF" in clean_mat.upper() else "Bed" if "BED" in clean_mat.upper() else "Pillow" if "PIL" in clean_mat.upper() else "Mattress"
-        matched_data = {
-            "id": f"temp-{clean_mat}",
-            "materialCode": clean_mat,
-            "partNumber": f"FG-{clean_mat}",
-            "category": inferred_cat,
-            "model": "Standard FG Model",
-            "productDescription": f"Finished Good Product ({clean_mat})",
-            "productName": f"Finished Good ({clean_mat})",
-            "dimensions": {"lengthMm": 1981, "widthMm": 1829, "heightMm": 203},
-            "netWeight": 25.0,
-            "grossWeight": 27.5,
-            "packageType": "Standard Package",
-            "status": "Active",
-            "fgImage": prod_image,
-            "images": [prod_image],
-            "colorVariant": "Standard",
-            "firmnessRating": "Standard",
-            "warrantyYears": 5,
-            "rfidInlayType": "EPC Gen2 UHF 865-867 MHz",
+    if raw_mat:
+        clean_mat = raw_mat
+        item = (
+            db.query(MasterDataItem)
+            .options(
+                joinedload(MasterDataItem.category),
+                joinedload(MasterDataItem.status),
+            )
+            .filter(
+                or_(
+                    MasterDataItem.material_code.ilike(clean_mat),
+                    MasterDataItem.part_number.ilike(clean_mat),
+                )
+            )
+            .first()
+        )
+
+        cat_str = item.category.name if (item and item.category) else (item.category_id if item else None)
+        item_images: list[str] = []
+        if item and item.fg_image:
+            if isinstance(item.fg_image, list) and len(item.fg_image) > 0:
+                item_images = [str(x) for x in item.fg_image if x][:4]
+            elif isinstance(item.fg_image, str) and item.fg_image != "string" and item.fg_image.strip():
+                item_images = [item.fg_image.strip()]
+
+        if not item_images:
+            item_images = [get_image_for_material(clean_mat, cat_str)]
+
+        prod_image = item_images[0]
+
+        if item:
+            matched_data = {
+                "id": item.id,
+                "materialCode": item.material_code,
+                "partNumber": item.part_number,
+                "category": cat_str,
+                "model": item.model or "",
+                "productDescription": item.product_description or "",
+                "productName": item.product_description or item.model or f"FG Item ({item.material_code})",
+                "dimensions": {
+                    "lengthMm": item.length_mm or 0,
+                    "widthMm": item.width_mm or 0,
+                    "heightMm": item.height_mm or 0,
+                },
+                "netWeight": float(item.net_weight or 25.0),
+                "grossWeight": float(item.gross_weight or 27.5),
+                "packageType": item.package_type or "Rolled Vacuum Box",
+                "status": item.status.name if item.status else "Active",
+                "fgImage": item_images,
+                "images": item_images,
+                "colorVariant": "Classic Grey / Navy",
+                "firmnessRating": "Medium Firm (Ortho)",
+                "warrantyYears": 10,
+                "rfidInlayType": "EPC Gen2 UHF 865-867 MHz",
+            }
+        else:
+            inferred_cat = "Recliner" if "REC" in clean_mat.upper() else "Sofa" if "SOF" in clean_mat.upper() else "Bed" if "BED" in clean_mat.upper() else "Pillow" if "PIL" in clean_mat.upper() else "Mattress"
+            matched_data = {
+                "id": f"temp-{clean_mat}",
+                "materialCode": clean_mat,
+                "partNumber": f"FG-{clean_mat}",
+                "category": inferred_cat,
+                "model": "Standard FG Model",
+                "productDescription": f"Finished Good Product ({clean_mat})",
+                "productName": f"Finished Good ({clean_mat})",
+                "dimensions": {"lengthMm": 1981, "widthMm": 1829, "heightMm": 203},
+                "netWeight": 25.0,
+                "grossWeight": 27.5,
+                "packageType": "Standard Package",
+                "status": "Active",
+                "fgImage": prod_image,
+                "images": [prod_image],
+                "colorVariant": "Standard",
+                "firmnessRating": "Standard",
+                "warrantyYears": 5,
+                "rfidInlayType": "EPC Gen2 UHF 865-867 MHz",
+            }
+
+    # Check if the composite combination (RFID Tag + Material Code + Work Order No) has already been committed in database
+    already_committed = False
+    existing_txn_info = None
+    existing_row = None
+
+    check_rfid = raw_rfid or (_latest_pending_scan.get("rfidUniqueId") if _latest_pending_scan else None)
+    check_mat = raw_mat or (_latest_pending_scan.get("materialCode") if _latest_pending_scan else None)
+    check_wo = raw_wo or (_latest_pending_scan.get("workOrderNo") if _latest_pending_scan else None)
+
+    if check_rfid and check_mat and check_wo:
+        existing_row = (
+            db.query(TransactionData)
+            .filter(
+                TransactionData.factory_rfid_tag_id.ilike(check_rfid.strip()),
+                TransactionData.material_code.ilike(check_mat.strip()),
+                TransactionData.work_order_no.ilike(check_wo.strip()),
+            )
+            .first()
+        )
+
+    if existing_row:
+        already_committed = True
+        existing_txn_info = {
+            "transactionId": existing_row.transaction_id,
+            "rfidUniqueId": existing_row.factory_rfid_tag_id,
+            "materialCode": existing_row.material_code,
+            "workOrderNo": existing_row.work_order_no,
+            "status": existing_row.status_id,
         }
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     scan_id = f"SCAN-{int(datetime.now().timestamp())}-{_scan_counter}"
+    is_complete = bool(raw_rfid and raw_mat and raw_wo)
+    summary_parts = [f"{k}='{v}'" for k, v in [('RFID', raw_rfid), ('Material', raw_mat), ('WO', raw_wo)] if v]
 
     _latest_pending_scan = {
         "success": True,
-        "message": f"Scan captured for Material Code '{payload.material_code}' and WO '{payload.work_order_no}'. Awaiting user Queue or Cancel in Product Validation.",
+        "message": f"Scan captured: {', '.join(summary_parts) if summary_parts else 'Empty scan'}",
         "scanId": scan_id,
-        "rfidUniqueId": payload.factory_rfid_tag_id.strip(),
-        "materialCode": payload.material_code.strip(),
-        "workOrderNo": payload.work_order_no.strip(),
+        "rawRfid": raw_rfid or None,
+        "rawMaterialCode": raw_mat or None,
+        "rawWorkOrderNo": raw_wo or None,
+        "rfidUniqueId": raw_rfid or None,
+        "materialCode": raw_mat or None,
+        "workOrderNo": raw_wo or None,
         "deviceId": actual_dev_id,
         "deviceName": dev_name,
         "matchedFgItem": matched_data,
-        "readingSuccess": True,
+        "readingSuccess": is_complete,
+        "isComplete": is_complete,
+        "alreadyCommitted": already_committed,
+        "existingTransaction": existing_txn_info,
         "scannedAt": now_str,
         "status": "AWAITING_QUEUE",
     }

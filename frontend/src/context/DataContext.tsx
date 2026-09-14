@@ -416,7 +416,35 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       const liveTxn = await TransactionsApi.commitTransaction(scanData, operatorRole);
       setMarriedTransactions(prev => [liveTxn, ...prev]);
       return liveTxn;
-    } catch (apiErr) {
+    } catch (apiErr: any) {
+      // If the backend actively rejected with 409 (duplicate combination) or 400 (validation error), rethrow to display alert
+      if (
+        apiErr?.message &&
+        (apiErr.message.includes('already registered') ||
+         apiErr.message.includes('Duplicate') ||
+         apiErr.message.includes('already exists') ||
+         apiErr.message.includes('constraint violation') ||
+         apiErr.message.includes('Conflict') ||
+         apiErr.message.includes('409') ||
+         apiErr.message.includes('400') ||
+         apiErr.message.includes('required'))
+      ) {
+        throw apiErr;
+      }
+
+      // If backend is offline, ensure local duplicate triplet is also strictly prevented
+      const isDuplicate = marriedTransactions.some(
+        t =>
+          t.rfidUniqueId?.toUpperCase() === scanData.rfidUniqueId?.toUpperCase() &&
+          t.materialCode?.toUpperCase() === scanData.qr1MaterialCode?.toUpperCase() &&
+          t.workOrderNo?.toUpperCase() === scanData.qr2WorkOrderNo?.toUpperCase()
+      );
+      if (isDuplicate) {
+        throw new Error(
+          `Duplicate Combination Rejected: RFID Tag [${scanData.rfidUniqueId}], Material [${scanData.qr1MaterialCode}], and Work Order [${scanData.qr2WorkOrderNo}] have already been registered.`
+        );
+      }
+
       console.warn('Backend commit failed or offline, saving to local store:', apiErr);
       const now = new Date();
       const dateStr = now.toISOString().substring(0, 10).replace(/-/g, '');

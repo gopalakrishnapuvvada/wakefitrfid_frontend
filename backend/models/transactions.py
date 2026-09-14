@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, ForeignKey, Integer, String
+from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from utils.database import Base
@@ -33,6 +33,14 @@ class TransactionData(Base):
     - Operator / Role (created_by)
     """
     __tablename__ = "transactions_data"
+    __table_args__ = (
+        UniqueConstraint(
+            "material_code",
+            "work_order_no",
+            "factory_rfid_tag_id",
+            name="uq_transactions_data_mat_wo_rfid",
+        ),
+    )
 
     sno: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     transaction_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)

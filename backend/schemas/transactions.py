@@ -154,9 +154,9 @@ class TransactionResponse(BaseModel):
 
 
 class PostCanRequest(BaseModel):
-    factory_rfid_tag_id: str = Field(..., alias="rfidUniqueId", description="Factory Generated RFID Tag Unique ID")
-    material_code: str = Field(..., alias="materialCode", description="Material Code")
-    work_order_no: str = Field(..., alias="workOrderNo", description="Work Order Number - WO")
+    factory_rfid_tag_id: str | None = Field(None, alias="rfidUniqueId", description="Factory Generated RFID Tag Unique ID")
+    material_code: str | None = Field(None, alias="materialCode", description="Material Code")
+    work_order_no: str | None = Field(None, alias="workOrderNo", description="Work Order Number - WO")
     scanner_device: str | None = Field(None, alias="deviceId", description="Scanner Device ID or Name")
 
     model_config = ConfigDict(populate_by_name=True)
@@ -196,13 +196,19 @@ class PostCanResponse(BaseModel):
     success: bool = True
     message: str
     scan_id: str = Field(..., alias="scanId")
-    rfid_unique_id: str = Field(..., alias="rfidUniqueId")
-    material_code: str = Field(..., alias="materialCode")
-    work_order_no: str = Field(..., alias="workOrderNo")
+    rfid_unique_id: str | None = Field(None, alias="rfidUniqueId")
+    material_code: str | None = Field(None, alias="materialCode")
+    work_order_no: str | None = Field(None, alias="workOrderNo")
+    raw_rfid: str | None = Field(None, alias="rawRfid")
+    raw_material_code: str | None = Field(None, alias="rawMaterialCode")
+    raw_work_order_no: str | None = Field(None, alias="rawWorkOrderNo")
     device_id: str = Field(..., alias="deviceId")
     device_name: str = Field(..., alias="deviceName")
     matched_fg_item: Any | None = Field(None, alias="matchedFgItem")
-    reading_success: bool = Field(True, alias="readingSuccess")
+    reading_success: bool = Field(False, alias="readingSuccess")
+    is_complete: bool = Field(False, alias="isComplete")
+    already_committed: bool = Field(False, alias="alreadyCommitted")
+    existing_transaction: Any | None = Field(None, alias="existingTransaction")
     scanned_at: str = Field(..., alias="scannedAt")
     status: str = "AWAITING_QUEUE"
 
