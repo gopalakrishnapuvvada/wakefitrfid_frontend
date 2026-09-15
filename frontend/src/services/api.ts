@@ -5,6 +5,7 @@ import type {
   MarriedTransaction,
   FGTransactionStatus,
   ScannedLabelData,
+  TransactionFilterParams,
 } from '../types';
 import { formatToIST } from '../utils/dateUtils';
 
@@ -453,9 +454,45 @@ export const TransactionsApi = {
   /**
    * GET /api/transactions/
    * Supports optional status filtering (e.g. 'wip' or 'dispatch')
+   * Supports optional query parameters or status string filter
    */
-  async getTransactions(status?: string): Promise<MarriedTransaction[]> {
-    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+  async getTransactions(params?: string | TransactionFilterParams): Promise<MarriedTransaction[]> {
+    let query = '';
+    if (typeof params === 'string') {
+      query = params ? `?status=${encodeURIComponent(params)}` : '';
+    } else if (params && typeof params === 'object') {
+      const searchParams = new URLSearchParams();
+      if (params.status && params.status.toUpperCase() !== 'ALL') {
+        searchParams.set('status', params.status);
+      }
+      if (params.materialCode) {
+        searchParams.set('material_code', params.materialCode);
+      }
+      if (params.deviceId && params.deviceId.toUpperCase() !== 'ALL') {
+        searchParams.set('device_id', params.deviceId);
+      }
+      if (params.category && params.category.toUpperCase() !== 'ALL') {
+        searchParams.set('category', params.category);
+      }
+      if (params.startDate) {
+        searchParams.set('start_date', params.startDate);
+      }
+      if (params.endDate) {
+        searchParams.set('end_date', params.endDate);
+      }
+      if (params.search && params.search.trim()) {
+        searchParams.set('search', params.search.trim());
+      }
+      if (params.skip !== undefined) {
+        searchParams.set('skip', String(params.skip));
+      }
+      if (params.limit !== undefined) {
+        searchParams.set('limit', String(params.limit));
+      }
+      const qs = searchParams.toString();
+      query = qs ? `?${qs}` : '';
+    }
+
     const list = await apiFetch<any[]>(`/api/transactions/${query}`);
     return list.map(t => {
       const prodImg =
@@ -463,26 +500,32 @@ export const TransactionsApi = {
         t.fgImage ||
         t.product_image ||
         t.fg_image ||
-        getProductImageByMaterial(t.materialCode, t.category);
+        getProductImageByMaterial(t.materialCode || t.material_code, t.category);
+
+      const createdTime = formatToIST(t.createdOn || t.created_on || t.productValidationTimestamp || t.product_validation_timestamp || t.timestamp);
+      const wipTime = formatToIST(t.productValidationTimestamp || t.product_validation_timestamp || t.createdOn || t.created_on || t.timestamp);
+      const dispatchTime = (t.labelLookupTimestamp || t.label_lookup_timestamp)
+        ? formatToIST(t.labelLookupTimestamp || t.label_lookup_timestamp)
+        : (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? createdTime : undefined);
 
       return {
-        id: t.id || t.transactionId,
-        transactionId: t.transactionId,
-        timestamp: formatToIST(t.timestamp || t.productValidationTimestamp || t.createdOn),
-        rfidUniqueId: t.rfidUniqueId || '',
-        workOrderNo: t.workOrderNo || '',
-        materialCode: t.materialCode,
-        partNumber: t.partNumber || '',
-        productName: t.productName || `FG Item (${t.materialCode})`,
+        id: t.id || t.transactionId || t.transaction_id,
+        transactionId: t.transactionId || t.transaction_id,
+        timestamp: createdTime,
+        rfidUniqueId: t.rfidUniqueId || t.rfid_unique_id || t.factory_rfid_tag_id || '',
+        workOrderNo: t.workOrderNo || t.work_order_no || '',
+        materialCode: t.materialCode || t.material_code,
+        partNumber: t.partNumber || t.part_number || '',
+        productName: t.productName || t.product_name || `FG Item (${t.materialCode || t.material_code})`,
         category: t.category || 'Mattress',
         mrp: 0,
         productImage: prodImg,
-        deviceId: t.deviceId || '',
-        deviceName: t.deviceName || 'Reader',
-        operatorRole: t.operatorRole || 'Line Operator',
-        status: (t.status === 'Dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
-        wipScanTimestamp: t.timestamp,
-        dispatchScanTimestamp: t.status === 'Dispatched' ? t.timestamp : undefined,
+        deviceId: t.deviceId || t.device_id || t.scanner_device || '',
+        deviceName: t.deviceName || t.device_name || 'Reader',
+        operatorRole: t.operatorRole || t.operator_role || t.created_by || 'Line Operator',
+        status: (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
+        wipScanTimestamp: wipTime,
+        dispatchScanTimestamp: dispatchTime,
         dbStatus: 'COMMITTED_TO_SQLITE' as const,
         sqliteDatabasePath: '/data/sqlite/wakefit_fg_marriage.db',
         sqliteRecordId: t.sno || 1,

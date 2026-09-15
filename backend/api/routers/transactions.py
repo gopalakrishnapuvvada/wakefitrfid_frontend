@@ -51,9 +51,13 @@ def get_transactions(
     status: str | None = None,
     material_code: str | None = None,
     device_id: str | None = None,
+    category: str | None = None,
+    category_id: str | None = None,
+    start_date: str | None = None,
+    end_date: str | None = None,
     search: str | None = None,
     skip: int = Query(0, ge=0),
-    limit: int = Query(200, ge=1, le=1000),
+    limit: int | None = Query(None, ge=-1),
 ):
     query = db.query(TransactionData).options(
         joinedload(TransactionData.master_item),
@@ -65,14 +69,71 @@ def get_transactions(
         stat_clean = status.lower()
         if stat_clean in ["dispatched", "dispatch"]:
             query = query.filter(TransactionData.status_id.in_(["dispatch", "dispatched"]))
+        elif stat_clean == "wip":
+            query = query.filter(TransactionData.status_id == "wip")
         else:
             query = query.filter(TransactionData.status_id == "wip")
+            query = query.filter(TransactionData.status_id.ilike(f"%{stat_clean}%"))
 
     if material_code:
         query = query.filter(TransactionData.material_code == material_code)
+        query = query.filter(TransactionData.material_code.ilike(material_code.strip()))
 
     if device_id and device_id.upper() != "ALL":
         query = query.filter(TransactionData.scanner_device == device_id)
+        dev_term = f"%{device_id.strip()}%"
+        query = query.filter(
+            or_(
+                TransactionData.scanner_device == device_id.strip(),
+                TransactionData.scanner_device.ilike(dev_term),
+                TransactionData.device.has(Device.display_name.ilike(dev_term)),
+                TransactionData.device.has(Device.asset_code.ilike(dev_term)),
+            )
+        )
+
+    cat_filter = category_id or category
+    if cat_filter and cat_filter.upper() != "ALL":
+        cat_term = f"%{cat_filter.strip()}%"
+        query = query.filter(
+            or_(
+                TransactionData.category_id.ilike(cat_term),
+                TransactionData.master_item.has(MasterDataItem.category_id.ilike(cat_term)),
+            )
+        )
+
+    if start_date:
+        clean_start = start_date.strip().replace("T", " ")
+        if "." in clean_start and "+" in clean_start:
+            clean_start = clean_start.split("+")[0]
+        try:
+            dt_start = datetime.fromisoformat(clean_start)
+            if dt_start.tzinfo is not None:
+                dt_start = dt_start.astimezone(timezone.utc).replace(tzinfo=None)
+            query = query.filter(
+                or_(
+                    TransactionData.product_validation_timestamp >= dt_start,
+                    TransactionData.created_on >= dt_start,
+                )
+            )
+        except Exception:
+            pass
+
+    if end_date:
+        clean_end = end_date.strip().replace("T", " ")
+        if "." in clean_end and "+" in clean_end:
+            clean_end = clean_end.split("+")[0]
+        try:
+            dt_end = datetime.fromisoformat(clean_end)
+            if dt_end.tzinfo is not None:
+                dt_end = dt_end.astimezone(timezone.utc).replace(tzinfo=None)
+            query = query.filter(
+                or_(
+                    TransactionData.product_validation_timestamp <= dt_end,
+                    TransactionData.created_on <= dt_end,
+                )
+            )
+        except Exception:
+            pass
 
     if search:
         term = f"%{search.strip()}%"
@@ -83,10 +144,20 @@ def get_transactions(
                 TransactionData.part_number.ilike(term),
                 TransactionData.work_order_no.ilike(term),
                 TransactionData.factory_rfid_tag_id.ilike(term),
+                TransactionData.scanner_device.ilike(term),
+                TransactionData.status_id.ilike(term),
+                TransactionData.master_item.has(MasterDataItem.product_name.ilike(term)),
             )
         )
 
     return query.order_by(TransactionData.created_on.desc()).offset(skip).limit(limit).all()
+    query = query.order_by(TransactionData.sno.desc(), TransactionData.created_on.desc())
+    if skip > 0:
+        query = query.offset(skip)
+    if limit is not None and limit > 0:
+        query = query.limit(limit)
+
+    return query.all()
 
 
 @router.post("/", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)

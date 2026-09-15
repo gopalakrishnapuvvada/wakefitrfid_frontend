@@ -169,6 +169,18 @@ export interface MarriedTransaction {
   sqliteRecordId: number;
 }
 
+export interface TransactionFilterParams {
+  status?: string;
+  materialCode?: string;
+  deviceId?: string;
+  category?: string;
+  startDate?: string;
+  endDate?: string;
+  search?: string;
+  skip?: number;
+  limit?: number;
+}
+
 export interface ValidationRecord {
   id: string;
   timestamp: string;
