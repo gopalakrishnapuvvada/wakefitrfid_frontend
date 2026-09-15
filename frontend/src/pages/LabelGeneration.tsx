@@ -144,32 +144,32 @@ export const LabelGeneration: React.FC = () => {
     });
   }, [marriedTransactions]);
 
-  // Active Read RFID & Traceability States (Persisted across refreshes)
-  const [activeTransactionId, setActiveTransactionId] = useState<string>(() => {
-    return savedLastScan?.transactionId || recentReads[0]?.transactionId || 'TXN-20260831-0089';
-  });
-  const [activeRfidTag, setActiveRfidTag] = useState<string>(() => {
-    return savedLastScan?.rfidTag || recentReads[0]?.rfidTag || 'E280117020002164A5B801D3';
-  });
-  const [activeWorkOrder, setActiveWorkOrder] = useState<string>(() => {
-    return savedLastScan?.workOrderNo || recentReads[0]?.workOrderNo || 'WO-2026-0831-99214';
-  });
+  // Active Read RFID & Traceability States (Initialized empty until a SICK scan occurs)
+  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
+  const [activeRfidTag, setActiveRfidTag] = useState<string | null>(null);
+  const [activeWorkOrder, setActiveWorkOrder] = useState<string | null>(null);
+  const [activeMaterialCode, setActiveMaterialCode] = useState<string | null>(null);
+  const [activePartNumber, setActivePartNumber] = useState<string | null>(null);
   const activeBatch = 'BATCH-2026-0831-A';
 
-  // Keep last scan details saved in localStorage
+  const hasActiveScan = scanPhase === 'reading_success' && Boolean(activeTransactionId);
+
+  // Keep last scan details saved in localStorage if active
   useEffect(() => {
-    try {
-      localStorage.setItem(
-        LAST_FIXED_SCAN_KEY,
-        JSON.stringify({
-          transactionId: activeTransactionId,
-          rfidTag: activeRfidTag,
-          workOrderNo: activeWorkOrder,
-          selectedSkuIndex,
-        })
-      );
-    } catch {
-      // ignore
+    if (activeTransactionId && activeRfidTag) {
+      try {
+        localStorage.setItem(
+          LAST_FIXED_SCAN_KEY,
+          JSON.stringify({
+            transactionId: activeTransactionId,
+            rfidTag: activeRfidTag,
+            workOrderNo: activeWorkOrder,
+            selectedSkuIndex,
+          })
+        );
+      } catch {
+        // ignore
+      }
     }
   }, [activeTransactionId, activeRfidTag, activeWorkOrder, selectedSkuIndex]);
 
@@ -204,6 +204,11 @@ export const LabelGeneration: React.FC = () => {
   const handleResetToStandby = useCallback(() => {
     setScanPhase('idle');
     setRemainingSeconds(0);
+    setActiveTransactionId(null);
+    setActiveRfidTag(null);
+    setActiveWorkOrder(null);
+    setActiveMaterialCode(null);
+    setActivePartNumber(null);
   }, []);
 
   // Standby auto-reset effect: After detection, maintain scanner UI display for configured duration (default 15 seconds)
@@ -219,6 +224,12 @@ export const LabelGeneration: React.FC = () => {
           if (prev <= 1) {
             clearInterval(interval);
             setScanPhase('idle');
+            // When SICK reader section disappears, Live Traceability & Coupled Product Identifiers parallely clears / becomes empty
+            setActiveTransactionId(null);
+            setActiveRfidTag(null);
+            setActiveWorkOrder(null);
+            setActiveMaterialCode(null);
+            setActivePartNumber(null);
             return 0;
           }
           return prev - 1;
@@ -264,6 +275,8 @@ export const LabelGeneration: React.FC = () => {
           setActiveTransactionId(pending.transactionId);
           setActiveRfidTag(pending.rfidUniqueId);
           setActiveWorkOrder(pending.workOrderNo);
+          setActiveMaterialCode(pending.materialCode);
+          setActivePartNumber(pending.partNumber || '');
 
           // Find matching Master Data item and update active SKU
           let newSkuIdx = selectedSkuIndex;
@@ -400,12 +413,16 @@ export const LabelGeneration: React.FC = () => {
 
   // Helper to copy entire traceability payload
   const handleCopyAllTraceability = () => {
+    if (!hasActiveScan) {
+      message.info('No active scanned data to copy. Please wait for an RFID scan.');
+      return;
+    }
     const payload = `=== WAKEFIT FG TRACEABILITY DATA ===
-Transaction ID: ${activeTransactionId}
-Material Code:  ${currentProduct.materialCode}
-Part Number:    ${currentProduct.partNumber}
-Work Order No:  ${activeWorkOrder}
-RFID Tag EPC:   ${activeRfidTag}
+Transaction ID: ${activeTransactionId || 'N/A'}
+RFID Tag No:    ${activeRfidTag || 'N/A'}
+Material Code:  ${activeMaterialCode || currentProduct.materialCode}
+Part Number:    ${activePartNumber || currentProduct.partNumber}
+Work Order No:  ${activeWorkOrder || 'N/A'}
 Product Name:   ${currentProduct.productDescription || currentProduct.productName}
 Category:       ${currentProduct.category}
 Dimensions:     ${currentProduct.dimensions.lengthMm} x ${currentProduct.dimensions.widthMm} x ${currentProduct.dimensions.heightMm} mm
@@ -424,7 +441,7 @@ Read Timestamp: ${new Date().toISOString()}
       {/* 1. SICK RFU630 RFID Portal & Scan Detection */}
       <ConveyorAnimation
         currentProduct={currentProduct}
-        rfidTag={activeRfidTag}
+        rfidTag={activeRfidTag || ''}
         scanPhase={scanPhase}
         countdown={remainingSeconds}
         displayDuration={displayDuration}
@@ -432,7 +449,7 @@ Read Timestamp: ${new Date().toISOString()}
         onChangeDuration={handleDurationChange}
       />
 
-      {/* 3. Four Key Copyable Traceability Data Fields (Highlighted Requirement) */}
+      {/* 3. Five Key Copyable Traceability Data Fields */}
       <Card
         bordered={false}
         title={
@@ -442,14 +459,25 @@ Read Timestamp: ${new Date().toISOString()}
               <span style={{ fontWeight: 800, fontSize: '15px' }}>
                 Live Traceability & Coupled Product Identifiers
               </span>
+              {hasActiveScan ? (
+                <Tag color="success" style={{ fontWeight: 700, borderRadius: '10px', fontSize: '11px' }}>
+                  ● SICK Scan Active
+                </Tag>
+              ) : (
+                <Tag color="default" style={{ fontWeight: 600, borderRadius: '10px', fontSize: '11px' }}>
+                  ○ Standby (Awaiting Scan)
+                </Tag>
+              )}
             </div>
 
             <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
               <Select
-                value={selectedSkuIndex}
+                value={hasActiveScan ? selectedSkuIndex : undefined}
+                placeholder={hasActiveScan ? undefined : 'No Active Scan'}
                 onChange={val => setSelectedSkuIndex(val)}
                 style={{ width: 250 }}
                 size="small"
+                disabled={!hasActiveScan}
               >
                 {masterData.map((item, idx) => (
                   <Option key={item.id} value={idx}>
@@ -462,6 +490,7 @@ Read Timestamp: ${new Date().toISOString()}
               <Button
                 icon={<ExportOutlined />}
                 size="small"
+                disabled={!hasActiveScan}
                 onClick={handleCopyAllTraceability}
                 style={{ fontWeight: 600, fontSize: '12px' }}
               >
@@ -476,19 +505,21 @@ Read Timestamp: ${new Date().toISOString()}
           boxShadow: '0 2px 8px rgba(0,0,0,0.04)',
         }}
       >
-        <Row gutter={[16, 16]}>
+        <Row gutter={[12, 12]} style={{ display: 'flex', flexWrap: 'wrap' }}>
           {/* Field 1: Transaction ID */}
-          <Col xs={24} sm={12} lg={6}>
+          <Col xs={24} sm={12} md={12} lg={4.8} xl={4.8} style={{ flex: '1 1 190px', minWidth: '180px' }}>
             <div
               style={{
                 padding: '14px 16px',
                 borderRadius: '8px',
-                backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                backgroundColor: isDark ? '#0f172a' : (hasActiveScan ? '#f8fafc' : '#f8fafc'),
+                border: `1px solid ${isDark ? '#334155' : (hasActiveScan ? '#e2e8f0' : '#e2e8f0')}`,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 height: '100%',
+                opacity: hasActiveScan ? 1 : 0.7,
+                transition: 'all 0.3s ease',
               }}
             >
               <div>
@@ -496,20 +527,21 @@ Read Timestamp: ${new Date().toISOString()}
                   <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.5px' }}>
                     TRANSACTION ID
                   </span>
-                  <Tag color="blue" style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
-                    Auto-Coupled
+                  <Tag color={hasActiveScan ? 'blue' : 'default'} style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
+                    {hasActiveScan ? 'Auto-Coupled' : 'Standby'}
                   </Tag>
                 </div>
-                <div style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'monospace', color: isDark ? '#f8fafc' : '#0f172a', wordBreak: 'break-all' }}>
-                  {activeTransactionId}
+                <div style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'monospace', color: hasActiveScan ? (isDark ? '#f8fafc' : '#0f172a') : '#94a3b8', wordBreak: 'break-all' }}>
+                  {hasActiveScan ? activeTransactionId : '—'}
                 </div>
               </div>
 
               <Button
                 type="dashed"
                 size="small"
+                disabled={!hasActiveScan || !activeTransactionId}
                 icon={copiedKey === 'txn' ? <CheckOutlined style={{ color: '#10B981' }} /> : <CopyOutlined />}
-                onClick={() => handleCopy(activeTransactionId, 'txn', 'Transaction ID')}
+                onClick={() => activeTransactionId && handleCopy(activeTransactionId, 'txn', 'Transaction ID')}
                 style={{
                   marginTop: '12px',
                   fontWeight: 600,
@@ -523,18 +555,69 @@ Read Timestamp: ${new Date().toISOString()}
             </div>
           </Col>
 
-          {/* Field 2: Material Code */}
-          <Col xs={24} sm={12} lg={6}>
+          {/* Field 2: RFID Tag No. */}
+          <Col xs={24} sm={12} md={12} lg={4.8} xl={4.8} style={{ flex: '1 1 190px', minWidth: '180px' }}>
             <div
               style={{
                 padding: '14px 16px',
                 borderRadius: '8px',
-                backgroundColor: isDark ? '#0f172a' : '#fef2f2',
-                border: `1px solid ${isDark ? '#334155' : '#fecaca'}`,
+                backgroundColor: isDark ? '#0f172a' : (hasActiveScan ? '#f0f9ff' : '#f8fafc'),
+                border: `1px solid ${isDark ? '#334155' : (hasActiveScan ? '#bae6fd' : '#e2e8f0')}`,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 height: '100%',
+                opacity: hasActiveScan ? 1 : 0.7,
+                transition: 'all 0.3s ease',
+              }}
+            >
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+                  <span style={{ fontSize: '11px', fontWeight: 700, color: '#0284C7', letterSpacing: '0.5px' }}>
+                    RFID TAG NO.
+                  </span>
+                  <Tag color={hasActiveScan ? 'cyan' : 'default'} style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
+                    {hasActiveScan ? 'SICK Portal' : 'Standby'}
+                  </Tag>
+                </div>
+                <div style={{ fontSize: '15px', fontWeight: 800, fontFamily: 'monospace', color: hasActiveScan ? '#0284C7' : '#94a3b8', wordBreak: 'break-all' }}>
+                  {hasActiveScan ? activeRfidTag : '—'}
+                </div>
+              </div>
+
+              <Button
+                type="dashed"
+                size="small"
+                disabled={!hasActiveScan || !activeRfidTag}
+                icon={copiedKey === 'rfid' ? <CheckOutlined style={{ color: '#10B981' }} /> : <CopyOutlined />}
+                onClick={() => activeRfidTag && handleCopy(activeRfidTag, 'rfid', 'RFID Tag No.')}
+                style={{
+                  marginTop: '12px',
+                  fontWeight: 600,
+                  width: '100%',
+                  color: copiedKey === 'rfid' ? '#10B981' : (hasActiveScan ? '#0284C7' : undefined),
+                  borderColor: copiedKey === 'rfid' ? '#10B981' : (hasActiveScan ? '#7dd3fc' : undefined),
+                }}
+              >
+                {copiedKey === 'rfid' ? 'Copied RFID Tag!' : 'Copy RFID Tag'}
+              </Button>
+            </div>
+          </Col>
+
+          {/* Field 3: Material Code */}
+          <Col xs={24} sm={12} md={12} lg={4.8} xl={4.8} style={{ flex: '1 1 190px', minWidth: '180px' }}>
+            <div
+              style={{
+                padding: '14px 16px',
+                borderRadius: '8px',
+                backgroundColor: isDark ? '#0f172a' : (hasActiveScan ? '#fef2f2' : '#f8fafc'),
+                border: `1px solid ${isDark ? '#334155' : (hasActiveScan ? '#fecaca' : '#e2e8f0')}`,
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'space-between',
+                height: '100%',
+                opacity: hasActiveScan ? 1 : 0.7,
+                transition: 'all 0.3s ease',
               }}
             >
               <div>
@@ -542,26 +625,30 @@ Read Timestamp: ${new Date().toISOString()}
                   <span style={{ fontSize: '11px', fontWeight: 700, color: '#E53935', letterSpacing: '0.5px' }}>
                     MATERIAL CODE
                   </span>
-                  <Tag color="red" style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
-                    Primary SKU
+                  <Tag color={hasActiveScan ? 'red' : 'default'} style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
+                    {hasActiveScan ? 'Primary SKU' : 'Standby'}
                   </Tag>
                 </div>
-                <div style={{ fontSize: '18px', fontWeight: 900, fontFamily: 'monospace', color: '#E53935', wordBreak: 'break-all' }}>
-                  {currentProduct.materialCode}
+                <div style={{ fontSize: '17px', fontWeight: 900, fontFamily: 'monospace', color: hasActiveScan ? '#E53935' : '#94a3b8', wordBreak: 'break-all' }}>
+                  {hasActiveScan ? (activeMaterialCode || currentProduct.materialCode) : '—'}
                 </div>
               </div>
 
               <Button
                 type="dashed"
                 size="small"
+                disabled={!hasActiveScan || !(activeMaterialCode || currentProduct.materialCode)}
                 icon={copiedKey === 'mat' ? <CheckOutlined style={{ color: '#10B981' }} /> : <CopyOutlined />}
-                onClick={() => handleCopy(currentProduct.materialCode, 'mat', 'Material Code')}
+                onClick={() => {
+                  const val = activeMaterialCode || currentProduct.materialCode;
+                  if (val) handleCopy(val, 'mat', 'Material Code');
+                }}
                 style={{
                   marginTop: '12px',
                   fontWeight: 600,
                   width: '100%',
-                  color: copiedKey === 'mat' ? '#10B981' : '#E53935',
-                  borderColor: copiedKey === 'mat' ? '#10B981' : '#fca5a5',
+                  color: copiedKey === 'mat' ? '#10B981' : (hasActiveScan ? '#E53935' : undefined),
+                  borderColor: copiedKey === 'mat' ? '#10B981' : (hasActiveScan ? '#fca5a5' : undefined),
                 }}
               >
                 {copiedKey === 'mat' ? 'Copied Material Code!' : 'Copy Material Code'}
@@ -569,18 +656,20 @@ Read Timestamp: ${new Date().toISOString()}
             </div>
           </Col>
 
-          {/* Field 3: Part Number */}
-          <Col xs={24} sm={12} lg={6}>
+          {/* Field 4: Part Number */}
+          <Col xs={24} sm={12} md={12} lg={4.8} xl={4.8} style={{ flex: '1 1 190px', minWidth: '180px' }}>
             <div
               style={{
                 padding: '14px 16px',
                 borderRadius: '8px',
-                backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                backgroundColor: isDark ? '#0f172a' : (hasActiveScan ? '#f8fafc' : '#f8fafc'),
+                border: `1px solid ${isDark ? '#334155' : (hasActiveScan ? '#e2e8f0' : '#e2e8f0')}`,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 height: '100%',
+                opacity: hasActiveScan ? 1 : 0.7,
+                transition: 'all 0.3s ease',
               }}
             >
               <div>
@@ -588,20 +677,24 @@ Read Timestamp: ${new Date().toISOString()}
                   <span style={{ fontSize: '11px', fontWeight: 700, color: '#64748b', letterSpacing: '0.5px' }}>
                     PART NUMBER (FG SKU)
                   </span>
-                  <Tag color="cyan" style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
-                    Engineering
+                  <Tag color={hasActiveScan ? 'cyan' : 'default'} style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
+                    {hasActiveScan ? 'Engineering' : 'Standby'}
                   </Tag>
                 </div>
-                <div style={{ fontSize: '17px', fontWeight: 800, fontFamily: 'monospace', color: isDark ? '#f8fafc' : '#0f172a', wordBreak: 'break-all' }}>
-                  {currentProduct.partNumber}
+                <div style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'monospace', color: hasActiveScan ? (isDark ? '#f8fafc' : '#0f172a') : '#94a3b8', wordBreak: 'break-all' }}>
+                  {hasActiveScan ? (activePartNumber || currentProduct.partNumber) : '—'}
                 </div>
               </div>
 
               <Button
                 type="dashed"
                 size="small"
+                disabled={!hasActiveScan || !(activePartNumber || currentProduct.partNumber)}
                 icon={copiedKey === 'part' ? <CheckOutlined style={{ color: '#10B981' }} /> : <CopyOutlined />}
-                onClick={() => handleCopy(currentProduct.partNumber, 'part', 'Part Number')}
+                onClick={() => {
+                  const val = activePartNumber || currentProduct.partNumber;
+                  if (val) handleCopy(val, 'part', 'Part Number');
+                }}
                 style={{
                   marginTop: '12px',
                   fontWeight: 600,
@@ -615,18 +708,20 @@ Read Timestamp: ${new Date().toISOString()}
             </div>
           </Col>
 
-          {/* Field 4: Work Order Number */}
-          <Col xs={24} sm={12} lg={6}>
+          {/* Field 5: Work Order Number */}
+          <Col xs={24} sm={12} md={12} lg={4.8} xl={4.8} style={{ flex: '1 1 190px', minWidth: '180px' }}>
             <div
               style={{
                 padding: '14px 16px',
                 borderRadius: '8px',
-                backgroundColor: isDark ? '#0f172a' : '#faf5ff',
-                border: `1px solid ${isDark ? '#334155' : '#e9d5ff'}`,
+                backgroundColor: isDark ? '#0f172a' : (hasActiveScan ? '#faf5ff' : '#f8fafc'),
+                border: `1px solid ${isDark ? '#334155' : (hasActiveScan ? '#e9d5ff' : '#e2e8f0')}`,
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'space-between',
                 height: '100%',
+                opacity: hasActiveScan ? 1 : 0.7,
+                transition: 'all 0.3s ease',
               }}
             >
               <div>
@@ -634,26 +729,27 @@ Read Timestamp: ${new Date().toISOString()}
                   <span style={{ fontSize: '11px', fontWeight: 700, color: '#8B5CF6', letterSpacing: '0.5px' }}>
                     WORK ORDER NUMBER
                   </span>
-                  <Tag color="purple" style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
-                    Production Run
+                  <Tag color={hasActiveScan ? 'purple' : 'default'} style={{ fontSize: '10px', margin: 0, borderRadius: '4px' }}>
+                    {hasActiveScan ? 'Production Run' : 'Standby'}
                   </Tag>
                 </div>
-                <div style={{ fontSize: '17px', fontWeight: 800, fontFamily: 'monospace', color: '#7c3aed', wordBreak: 'break-all' }}>
-                  {activeWorkOrder}
+                <div style={{ fontSize: '16px', fontWeight: 800, fontFamily: 'monospace', color: hasActiveScan ? '#7c3aed' : '#94a3b8', wordBreak: 'break-all' }}>
+                  {hasActiveScan ? activeWorkOrder : '—'}
                 </div>
               </div>
 
               <Button
                 type="dashed"
                 size="small"
+                disabled={!hasActiveScan || !activeWorkOrder}
                 icon={copiedKey === 'wo' ? <CheckOutlined style={{ color: '#10B981' }} /> : <CopyOutlined />}
-                onClick={() => handleCopy(activeWorkOrder, 'wo', 'Work Order Number')}
+                onClick={() => activeWorkOrder && handleCopy(activeWorkOrder, 'wo', 'Work Order Number')}
                 style={{
                   marginTop: '12px',
                   fontWeight: 600,
                   width: '100%',
-                  color: copiedKey === 'wo' ? '#10B981' : '#7c3aed',
-                  borderColor: copiedKey === 'wo' ? '#10B981' : '#d8b4fe',
+                  color: copiedKey === 'wo' ? '#10B981' : (hasActiveScan ? '#7c3aed' : undefined),
+                  borderColor: copiedKey === 'wo' ? '#10B981' : (hasActiveScan ? '#d8b4fe' : undefined),
                 }}
               >
                 {copiedKey === 'wo' ? 'Copied Work Order!' : 'Copy Work Order Number'}
