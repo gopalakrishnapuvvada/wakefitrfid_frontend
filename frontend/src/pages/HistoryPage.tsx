@@ -449,10 +449,10 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
                   <CheckCircleOutlined style={{ marginRight: '4px' }} />
                   Dispatched: {dispatchedCount}
                 </Tag>
-                {/* <Tag color="blue" style={{ borderRadius: '6px', fontWeight: 800, fontSize: '12px', margin: 0, padding: '2px 8px' }}>
+                <Tag color="blue" style={{ borderRadius: '6px', fontWeight: 800, fontSize: '12px', margin: 0, padding: '2px 8px' }}>
                   <FileTextOutlined style={{ marginRight: '5px' }} />
                   Unique WOs: {uniqueWorkOrders}
-                </Tag> */}
+                </Tag>
               </div>
             </div>
           </div>

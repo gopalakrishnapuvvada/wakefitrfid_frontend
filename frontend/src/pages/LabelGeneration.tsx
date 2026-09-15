@@ -18,7 +18,8 @@ import {
   DatabaseOutlined, 
   HistoryOutlined,
   ExportOutlined,
-  SearchOutlined
+  SearchOutlined,
+  DeleteOutlined
 } from '@ant-design/icons';
 import confetti from 'canvas-confetti';
 import { useData } from '../context/DataContext';
@@ -48,7 +49,7 @@ interface RecentConveyorRead {
 }
 
 export const LabelGeneration: React.FC = () => {
-  const { masterData, updateTransactionStatus, marriedTransactions } = useData();
+  const { masterData, updateTransactionStatus, marriedTransactions, refreshTransactions } = useData();
   const { isDark } = useAppTheme();
 
   // Restore latest scan state or defaults from localStorage
@@ -70,6 +71,25 @@ export const LabelGeneration: React.FC = () => {
   // Scan Lifecycle State
   const [scanPhase, setScanPhase] = useState<SickScanPhase>('idle');
 
+  // Active Read RFID & Traceability States (Initialized empty until a SICK scan occurs)
+  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
+  const [activeRfidTag, setActiveRfidTag] = useState<string | null>(null);
+  const [activeWorkOrder, setActiveWorkOrder] = useState<string | null>(null);
+  const [activeMaterialCode, setActiveMaterialCode] = useState<string | null>(null);
+  const [activePartNumber, setActivePartNumber] = useState<string | null>(null);
+  const activeBatch = 'BATCH-2026-0831-A';
+
+  const hasActiveScan = scanPhase === 'reading_success' && Boolean(activeTransactionId);
+
+  const handleResetToStandby = useCallback(() => {
+    setScanPhase('idle');
+    setActiveTransactionId(null);
+    setActiveRfidTag(null);
+    setActiveWorkOrder(null);
+    setActiveMaterialCode(null);
+    setActivePartNumber(null);
+  }, []);
+
   // Recent Conveyor Reads History Stream (Persisted in localStorage across refreshes)
   const [recentReads, setRecentReads] = useState<RecentConveyorRead[]>(() => {
     try {
@@ -89,21 +109,38 @@ export const LabelGeneration: React.FC = () => {
   // Automatically save recentReads to localStorage whenever it changes
   useEffect(() => {
     try {
-      localStorage.setItem(DISPATCH_READS_KEY, JSON.stringify(recentReads));
+      if (recentReads.length > 0) {
+        localStorage.setItem(DISPATCH_READS_KEY, JSON.stringify(recentReads));
+      } else {
+        localStorage.removeItem(DISPATCH_READS_KEY);
+      }
     } catch {
       // ignore
     }
   }, [recentReads]);
 
+  // Refresh live transactions on mount to ensure synchronization with SQLite
+  useEffect(() => {
+    refreshTransactions();
+  }, [refreshTransactions]);
+
   // Synchronize dispatched transactions from DataContext (backed by SQLite DB) into recentReads
   useEffect(() => {
-    if (!marriedTransactions || marriedTransactions.length === 0) return;
-
-    const dispatchedTxns = marriedTransactions.filter(
+    const dispatchedTxns = (marriedTransactions || []).filter(
       t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch'
     );
 
-    if (dispatchedTxns.length === 0) return;
+    if (dispatchedTxns.length === 0) {
+      setRecentReads([]);
+      handleResetToStandby();
+      try {
+        localStorage.removeItem(DISPATCH_READS_KEY);
+        localStorage.removeItem(LAST_FIXED_SCAN_KEY);
+      } catch {
+        // ignore
+      }
+      return;
+    }
 
     setRecentReads(prev => {
       let updated = [...prev];
@@ -142,17 +179,22 @@ export const LabelGeneration: React.FC = () => {
 
       return hasChange ? updated : prev;
     });
-  }, [marriedTransactions]);
+  }, [marriedTransactions, handleResetToStandby]);
 
-  // Active Read RFID & Traceability States (Initialized empty until a SICK scan occurs)
-  const [activeTransactionId, setActiveTransactionId] = useState<string | null>(null);
-  const [activeRfidTag, setActiveRfidTag] = useState<string | null>(null);
-  const [activeWorkOrder, setActiveWorkOrder] = useState<string | null>(null);
-  const [activeMaterialCode, setActiveMaterialCode] = useState<string | null>(null);
-  const [activePartNumber, setActivePartNumber] = useState<string | null>(null);
-  const activeBatch = 'BATCH-2026-0831-A';
-
-  const hasActiveScan = scanPhase === 'reading_success' && Boolean(activeTransactionId);
+  // Clear all dispatch records and reset SICK portal buffer
+  const handleClearDispatchRecords = async () => {
+    setRecentReads([]);
+    handleResetToStandby();
+    try {
+      localStorage.removeItem(DISPATCH_READS_KEY);
+      localStorage.removeItem(LAST_FIXED_SCAN_KEY);
+      await TransactionsApi.clearFixedRfid();
+      await refreshTransactions();
+    } catch (err) {
+      console.warn('Failed to clear fixed rfid buffer:', err);
+    }
+    message.success('Dispatch records and scan buffer cleared.');
+  };
 
   // Keep last scan details saved in localStorage if active
   useEffect(() => {
@@ -200,16 +242,6 @@ export const LabelGeneration: React.FC = () => {
       setRemainingSeconds(seconds);
     }
   };
-
-  const handleResetToStandby = useCallback(() => {
-    setScanPhase('idle');
-    setRemainingSeconds(0);
-    setActiveTransactionId(null);
-    setActiveRfidTag(null);
-    setActiveWorkOrder(null);
-    setActiveMaterialCode(null);
-    setActivePartNumber(null);
-  }, []);
 
   // Standby auto-reset effect: After detection, maintain scanner UI display for configured duration (default 15 seconds)
   useEffect(() => {
@@ -777,9 +809,18 @@ Read Timestamp: ${new Date().toISOString()}
                 value={tableSearchText}
                 onChange={e => setTableSearchText(e.target.value)}
                 allowClear
-                style={{ width: 380, minWidth: 260 }}
+                style={{ width: 320, minWidth: 220 }}
                 size="small"
               />
+              <Button
+                size="small"
+                danger
+                icon={<DeleteOutlined />}
+                onClick={handleClearDispatchRecords}
+                disabled={recentReads.length === 0}
+              >
+                Clear Dispatches
+              </Button>
               <Tag color="cyan" style={{ fontWeight: 700, borderRadius: '4px', margin: 0 }}>
                 LIVE BUFFER
               </Tag>

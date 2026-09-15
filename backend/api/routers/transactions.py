@@ -732,4 +732,21 @@ def clear_fixed_rfid():
     return {"success": True, "message": "Fixed RFID scan buffer cleared"}
 
 
+@router.post("/clear")
+def clear_all_transactions(db: Annotated[Session, Depends(get_db)]):
+    """
+    Clears all transaction data from SQLite transactions_data table
+    and resets all in-memory scan buffers.
+    """
+    global _latest_pending_scan, _latest_pending_fixed_scan
+    _latest_pending_scan = None
+    _latest_pending_fixed_scan = None
+    deleted_count = db.query(TransactionData).delete()
+    db.commit()
+    return {
+        "success": True,
+        "message": f"Successfully cleared {deleted_count} transaction records and reset scan buffers.",
+    }
+
+
 
