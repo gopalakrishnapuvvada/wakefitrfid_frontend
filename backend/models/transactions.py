@@ -40,11 +40,16 @@ class TransactionData(Base):
             "factory_rfid_tag_id",
             name="uq_transactions_data_mat_wo_rfid",
         ),
+        UniqueConstraint(
+            "factory_rfid_tag_id",
+            name="uq_transactions_data_rfid",
+        ),
     )
 
     sno: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     transaction_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
     factory_rfid_tag_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    factory_rfid_tag_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
     work_order_no: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
     material_code: Mapped[str] = mapped_column(

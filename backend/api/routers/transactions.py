@@ -107,6 +107,24 @@ def create_marriage_transaction(
         raise HTTPException(status_code=400, detail="Work Order Number is required for marriage.")
 
     # Check for duplicate composite combination (RFID Tag + Material Code + Work Order No)
+    # 1. Global RFID Tag Uniqueness Check: Every RFID Tag ID must be unique across entire database
+    existing_rfid = (
+        db.query(TransactionData)
+        .filter(TransactionData.factory_rfid_tag_id.ilike(clean_rfid))
+        .first()
+    )
+    if existing_rfid:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail=(
+                f"Duplicate RFID Tag Rejected: Factory RFID Tag ID '{clean_rfid}' is already registered "
+                f"in Transaction '{existing_rfid.transaction_id}' (Work Order: '{existing_rfid.work_order_no or 'N/A'}', "
+                f"Material Code: '{existing_rfid.material_code or 'N/A'}', Status: '{existing_rfid.status_id}'). "
+                f"Every RFID tag must be unique across the entire database."
+            ),
+        )
+
+    # 2. Check for duplicate composite combination (RFID Tag + Material Code + Work Order No)
     existing_combo = (
         db.query(TransactionData)
         .filter(
@@ -208,6 +226,11 @@ def create_marriage_transaction(
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail=f"Foreign Key Violation: Material Code '{clean_mat}' is not present in Master Data Management.",
+            )
+        elif "uq_transactions_data_rfid" in err_msg or ("factory_rfid_tag_id" in err_msg and ("UNIQUE" in err_msg.upper() or "constraint failed" in err_msg.lower())):
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Duplicate RFID Tag Rejected: Factory RFID Tag ID '{clean_rfid}' is already registered in the database. Every RFID tag must be unique.",
             )
         elif "uq_transactions_data_mat_wo_rfid" in err_msg or ("material_code" in err_msg and "factory_rfid_tag_id" in err_msg):
             raise HTTPException(
@@ -376,16 +399,28 @@ def post_can(
     # Foreign Key validation state
     material_in_master = bool(item) if raw_mat else True
 
-    # Check if the composite combination (RFID Tag + Material Code + Work Order No) has already been committed in database
+    # Check if RFID Tag or composite combination has already been committed in database
     already_committed = False
     existing_txn_info = None
     existing_row = None
+    duplicate_reason = None
 
     check_rfid = raw_rfid or (_latest_pending_scan.get("rfidUniqueId") if _latest_pending_scan else None)
     check_mat = raw_mat or (_latest_pending_scan.get("materialCode") if _latest_pending_scan else None)
     check_wo = raw_wo or (_latest_pending_scan.get("workOrderNo") if _latest_pending_scan else None)
 
-    if check_rfid and check_mat and check_wo:
+    # 1. Global RFID Tag uniqueness check (RFID must be unique across entire DB)
+    if check_rfid:
+        existing_row = (
+            db.query(TransactionData)
+            .filter(TransactionData.factory_rfid_tag_id.ilike(check_rfid.strip()))
+            .first()
+        )
+        if existing_row:
+            duplicate_reason = "duplicate_rfid"
+
+    # 2. Composite triplet check fallback
+    if not existing_row and check_rfid and check_mat and check_wo:
         existing_row = (
             db.query(TransactionData)
             .filter(
@@ -395,6 +430,8 @@ def post_can(
             )
             .first()
         )
+        if existing_row:
+            duplicate_reason = "duplicate_triplet"
 
     if existing_row:
         already_committed = True
@@ -404,6 +441,7 @@ def post_can(
             "materialCode": existing_row.material_code,
             "workOrderNo": existing_row.work_order_no,
             "status": existing_row.status_id,
+            "conflictReason": duplicate_reason,
         }
 
     now_str = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
@@ -411,9 +449,15 @@ def post_can(
     is_complete = bool(raw_rfid and raw_mat and raw_wo and material_in_master)
     summary_parts = [f"{k}='{v}'" for k, v in [('RFID', raw_rfid), ('Material', raw_mat), ('WO', raw_wo)] if v]
 
+    scan_msg = f"Scan captured: {', '.join(summary_parts) if summary_parts else 'Empty scan'}"
+    if duplicate_reason == "duplicate_rfid":
+        scan_msg = f"Duplicate RFID Tag: Factory RFID '{check_rfid}' is already registered in Transaction '{existing_row.transaction_id}'."
+    elif duplicate_reason == "duplicate_triplet":
+        scan_msg = f"Duplicate Combination: '{check_rfid}' + '{check_mat}' + '{check_wo}' is already registered in Transaction '{existing_row.transaction_id}'."
+
     _latest_pending_scan = {
         "success": True,
-        "message": f"Scan captured: {', '.join(summary_parts) if summary_parts else 'Empty scan'}",
+        "message": scan_msg,
         "scanId": scan_id,
         "rawRfid": raw_rfid or None,
         "rawMaterialCode": raw_mat or None,

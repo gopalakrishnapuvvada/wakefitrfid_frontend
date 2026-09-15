@@ -57,6 +57,13 @@ def init_required_db_records():
                 )
             )
 
+        # 4. Ensure global unique index on factory_rfid_tag_id in transactions_data
+        try:
+            from sqlalchemy import text
+            db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_data_rfid ON transactions_data(factory_rfid_tag_id)"))
+        except Exception as idx_err:
+            print(f"Notice: Unique index uq_transactions_data_rfid creation: {idx_err}")
+
         db.commit()
 
 

@@ -448,6 +448,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         );
       }
 
+      // Check if RFID Tag ID is already registered in local store (Global RFID Uniqueness)
+      const cleanRfid = (scanData.rfidUniqueId || '').trim().toUpperCase();
+      const existingRfidTxn = marriedTransactions.find(
+        t => t.rfidUniqueId?.trim().toUpperCase() === cleanRfid
+      );
+      if (existingRfidTxn) {
+        throw new Error(
+          `Duplicate RFID Tag Rejected: Factory RFID Tag [${scanData.rfidUniqueId}] is already registered in Transaction [${existingRfidTxn.transactionId}] (WO: ${existingRfidTxn.workOrderNo || 'N/A'}, Material: ${existingRfidTxn.materialCode || 'N/A'}). Every RFID tag must be unique across the entire database.`
+        );
+      }
+
       // If backend is offline, ensure local duplicate triplet is also strictly prevented
       const isDuplicate = marriedTransactions.some(
         t =>

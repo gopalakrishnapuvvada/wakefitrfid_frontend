@@ -207,6 +207,111 @@ export const ProductValidation: React.FC = () => {
 
     // The composite triplet (RFID Tag + Material Code + Work Order No) is unique.
     // Check if the complete combination already exists in SQLite / committed transactions.
+    // 1. Factory RFID Tag ID Uniqueness Check:
+    // Every RFID Tag ID must be globally unique across the entire database.
+    // An already registered RFID tag cannot be used again across different work orders or items.
+    const duplicateRfidTxn = candRfid
+      ? (incoming.alreadyCommitted && incoming.existingTransaction && (incoming.existingTransaction.rfidUniqueId?.toUpperCase() === candRfid.toUpperCase()))
+        ? incoming.existingTransaction
+        : marriedTransactions.find(
+            t => t.rfidUniqueId?.trim().toUpperCase() === candRfid.toUpperCase()
+          )
+      : null;
+
+    if (duplicateRfidTxn) {
+      // Cancel backend pending scan buffer so it doesn't linger
+      try {
+        const cancelFn = TransactionsApi.cancelScan || (TransactionsApi as any).cancelCan;
+        if (typeof cancelFn === 'function') {
+          cancelFn().catch(() => {});
+        } else {
+          fetch('/api/transactions/cancel_scan', { method: 'POST' }).catch(() => {});
+        }
+      } catch {
+        // quiet
+      }
+
+      // If active session had QR codes, remove the duplicate RFID from the session
+      if (cur) {
+        const resetScan: ScannedLabelData = {
+          ...cur,
+          rfidUniqueId: '',
+          rfidProtocol: '',
+          rfidSignalRssi: '',
+          readingSuccess: false,
+          isQueued: false,
+        };
+        currentScanRef.current = resetScan;
+        setCurrentScan(resetScan);
+      }
+
+      Modal.warning({
+        title: (
+          <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
+            ⚠️ Factory RFID Tag Already Present
+          </span>
+        ),
+        icon: <ExclamationCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
+        centered: true,
+        width: 540,
+        okText: 'Scan Another RFID Tag',
+        okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
+        content: (
+          <div style={{ marginTop: '12px' }}>
+            <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
+              The scanned <strong>Factory RFID Tag ID</strong> is <strong>already registered in the database</strong>
+            </p>
+            <div
+              style={{
+                backgroundColor: isDark ? '#1e293b' : '#fef2f2',
+                border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
+                borderRadius: '8px',
+                padding: '12px 16px',
+                fontSize: '12px',
+                marginBottom: '12px',
+              }}
+            >
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Factory RFID Tag ID:</strong>{' '}
+                <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
+                  {duplicateRfidTxn.rfidUniqueId || candRfid}
+                </span>
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Already Registered In:</strong>{' '}
+                <span style={{ fontFamily: 'monospace', color: '#0284C7', fontWeight: 700 }}>
+                  {duplicateRfidTxn.transactionId}
+                </span>
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Work Order No:</strong>{' '}
+                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                  {duplicateRfidTxn.workOrderNo || 'N/A'}
+                </span>
+              </div>
+              <div style={{ marginBottom: '4px' }}>
+                <strong>Material Code:</strong>{' '}
+                <span style={{ fontFamily: 'monospace', fontWeight: 700 }}>
+                  {duplicateRfidTxn.materialCode || 'N/A'}
+                </span>
+              </div>
+              <div style={{ marginBottom: '6px' }}>
+                <strong>Status:</strong>{' '}
+                <Tag color={duplicateRfidTxn.status?.toLowerCase() === 'dispatch' ? 'geekblue' : 'green'}>
+                  {(duplicateRfidTxn.status || 'WIP').toUpperCase()}
+                </Tag>
+              </div>
+              <div>
+                <Tag color="error">DUPLICATE RFID TAG REJECTED</Tag>
+              </div>
+            </div>
+          </div>
+        ),
+      });
+      return;
+    }
+
+    // 2. Composite triplet (RFID Tag + Material Code + Work Order No) check:
     const isFullTriplet = Boolean(candRfid && candMat && candWo);
     const alreadyMarried = isFullTriplet
       ? incoming.alreadyCommitted && incoming.existingTransaction
@@ -323,12 +428,9 @@ export const ProductValidation: React.FC = () => {
                     {incMat}
                   </span>
                 </div>
-                <div style={{ marginTop: '6px' }}>
-                  <Tag color="error">FOREIGN KEY VIOLATION — NOT IN MASTER DATA</Tag>
-                </div>
               </div>
               <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
-                This record cannot be inserted into the database. Please register this Material Code in Master Data Management first.
+                Please register this Material Code in Master Data Management first.
               </div>
             </div>
           ),
@@ -841,6 +943,33 @@ export const ProductValidation: React.FC = () => {
       return;
     }
 
+    // Double check RFID uniqueness before submitting
+    const existingRfidTxn = marriedTransactions.find(
+      t => t.rfidUniqueId?.trim().toUpperCase() === currentScan.rfidUniqueId?.trim().toUpperCase()
+    );
+    if (existingRfidTxn) {
+      Modal.warning({
+        title: (
+          <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
+            ⚠️ Factory RFID Tag Already Present
+          </span>
+        ),
+        icon: <ExclamationCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
+        centered: true,
+        width: 540,
+        okText: 'Scan Another RFID Tag',
+        okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
+        content: (
+          <div style={{ marginTop: '12px' }}>
+            <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
+              The Factory RFID Tag <strong>{currentScan.rfidUniqueId}</strong> has <strong>already been registered</strong> in Transaction <strong>{existingRfidTxn.transactionId}</strong>! Every RFID tag is unique across the entire database.
+            </p>
+          </div>
+        ),
+      });
+      return;
+    }
+
     setIsQueueing(true);
     try {
       const txn = await queueMarryTransaction(currentScan, currentRole.name);
@@ -873,13 +1002,59 @@ export const ProductValidation: React.FC = () => {
       });
 
       message.success({
-        content: `Transaction Queued! RFID [${txn.rfidUniqueId}] ⮀ Material [${txn.materialCode}] ⮀ WO [${txn.workOrderNo}] Married & Saved in SQLite DB (Record #${txn.sqliteRecordId}).`,
+        content: `Transaction Queued! RFID [${txn.rfidUniqueId}] ⮀ Material [${txn.materialCode}] ⮀ WO [${txn.workOrderNo}].`,
         duration: 4,
       });
     } catch (err: any) {
       setIsQueueing(false);
       const errMsg = err?.message || 'Failed to communicate with Python SQLite service.';
       if (
+        errMsg.toLowerCase().includes('duplicate rfid') ||
+        (errMsg.toLowerCase().includes('rfid') && (errMsg.toLowerCase().includes('already registered') || errMsg.toLowerCase().includes('unique') || errMsg.toLowerCase().includes('already present')))
+      ) {
+        Modal.warning({
+          title: (
+            <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
+              ⚠️ Factory RFID Tag Already Present
+            </span>
+          ),
+          icon: <ExclamationCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
+          centered: true,
+          width: 540,
+          okText: 'Acknowledge',
+          okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
+          content: (
+            <div style={{ marginTop: '12px' }}>
+              <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
+                Database rejection: The scanned Factory RFID Tag ID is <strong>already registered in the database</strong>. Every RFID tag must be unique across the entire system.
+              </p>
+              <div
+                style={{
+                  backgroundColor: isDark ? '#1e293b' : '#fef2f2',
+                  border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
+                  borderRadius: '8px',
+                  padding: '12px 16px',
+                  fontSize: '13px',
+                  marginBottom: '12px',
+                }}
+              >
+                <div>
+                  <strong>Factory RFID Tag ID:</strong>{' '}
+                  <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
+                    {currentScan?.rfidUniqueId}
+                  </span>
+                </div>
+                <div style={{ marginTop: '6px' }}>
+                  <Tag color="error">SQLITE UNIQUE RFID CONSTRAINT VIOLATION</Tag>
+                </div>
+              </div>
+              <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
+                {errMsg}
+              </div>
+            </div>
+          ),
+        });
+      } else if (
         errMsg.toLowerCase().includes('foreign key') ||
         errMsg.toLowerCase().includes('master data') ||
         errMsg.toLowerCase().includes('material management')
@@ -1020,7 +1195,7 @@ export const ProductValidation: React.FC = () => {
             <div>
               <div style={{ fontWeight: 700, color: '#059669', display: 'flex', alignItems: 'center', gap: '6px' }}>
                 <CheckCircleOutlined />
-                <span>Previous Item Successfully Committed & Saved in SQLite DB!</span>
+                <span>Data Submitted Successfully</span>
               </div>
               <div style={{ marginTop: '4px', fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569' }}>
                 <strong>{lastCommittedTxn.transactionId}</strong> — RFID:{' '}
@@ -1037,7 +1212,6 @@ export const ProductValidation: React.FC = () => {
                 </span>
               </div>
             </div>
-            <Tag color="success" style={{ fontWeight: 800 }}>STORED IN SQLITE</Tag>
           </div>
         )}
 
