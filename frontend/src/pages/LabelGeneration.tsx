@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect, useRef } from 'react';
+import React, { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import { 
   Row, 
   Col, 
@@ -32,6 +32,7 @@ const { Option } = Select;
 
 const DISPATCH_READS_KEY = 'wakefit_recent_conveyor_reads_v3';
 const LAST_FIXED_SCAN_KEY = 'wakefit_last_fixed_rfid_scan_v3';
+const DISPLAY_DURATION_KEY = 'wakefit_label_lookup_display_duration_v1';
 
 interface RecentConveyorRead {
   id: string;
@@ -175,15 +176,58 @@ export const LabelGeneration: React.FC = () => {
   // Copy success indicator states
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
-  // Standby auto-reset effect: After detection, return scanner UI to standby after 2 seconds
+  // Configurable display duration (seconds): 10, 15, 20, 30, 60, or 0 (hold indefinitely)
+  // Default is increased from 2s to 15s for comfortable human inspection
+  const [displayDuration, setDisplayDuration] = useState<number>(() => {
+    try {
+      const saved = localStorage.getItem(DISPLAY_DURATION_KEY);
+      return saved !== null ? parseInt(saved, 10) : 15;
+    } catch {
+      return 15;
+    }
+  });
+
+  const [remainingSeconds, setRemainingSeconds] = useState<number>(15);
+
+  const handleDurationChange = (seconds: number) => {
+    setDisplayDuration(seconds);
+    try {
+      localStorage.setItem(DISPLAY_DURATION_KEY, String(seconds));
+    } catch {
+      // ignore
+    }
+    if (scanPhase === 'reading_success') {
+      setRemainingSeconds(seconds);
+    }
+  };
+
+  const handleResetToStandby = useCallback(() => {
+    setScanPhase('idle');
+    setRemainingSeconds(0);
+  }, []);
+
+  // Standby auto-reset effect: After detection, maintain scanner UI display for configured duration (default 15 seconds)
   useEffect(() => {
     if (scanPhase === 'reading_success') {
-      const timer = setTimeout(() => {
-        setScanPhase('idle');
-      }, 2000);
-      return () => clearTimeout(timer);
+      if (displayDuration <= 0) {
+        return; // 0 = Hold indefinitely until next scan
+      }
+
+      setRemainingSeconds(displayDuration);
+      const interval = setInterval(() => {
+        setRemainingSeconds(prev => {
+          if (prev <= 1) {
+            clearInterval(interval);
+            setScanPhase('idle');
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+
+      return () => clearInterval(interval);
     }
-  }, [scanPhase]);
+  }, [scanPhase, displayDuration]);
 
   // Buffer tracking for continuous SICK RFU630 fixed RFID reader listener
   const lastProcessedFixedScanIdRef = useRef<string | null>(null);
@@ -214,6 +258,7 @@ export const LabelGeneration: React.FC = () => {
 
           // 1. SICK RFID Portal detection animation: Orange blink as box passes under antenna
           setScanPhase('reading_success');
+          setRemainingSeconds(displayDuration);
 
           // 2. Update Live Traceability & Coupled Product Identifiers tiles
           setActiveTransactionId(pending.transactionId);
@@ -285,7 +330,7 @@ export const LabelGeneration: React.FC = () => {
 
           message.success({
             content: `SICK RFID Portal Detected Tag [${pending.rfidUniqueId}]! Coupled to Transaction [${pending.transactionId}], WO [${pending.workOrderNo}], Material [${pending.materialCode}]. Status: DISPATCH.`,
-            duration: 3,
+            duration: 8,
           });
 
           // 5. Update status in DataContext
@@ -381,6 +426,10 @@ Read Timestamp: ${new Date().toISOString()}
         currentProduct={currentProduct}
         rfidTag={activeRfidTag}
         scanPhase={scanPhase}
+        countdown={remainingSeconds}
+        displayDuration={displayDuration}
+        onResetToStandby={handleResetToStandby}
+        onChangeDuration={handleDurationChange}
       />
 
       {/* 3. Four Key Copyable Traceability Data Fields (Highlighted Requirement) */}
