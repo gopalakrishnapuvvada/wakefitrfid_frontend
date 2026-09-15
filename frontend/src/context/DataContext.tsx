@@ -52,6 +52,7 @@ interface DataContextType {
   queueMarryTransaction: (scanData: ScannedLabelData, operatorRole: string) => Promise<MarriedTransaction>;
   updateTransactionStatus: (id: string, status: FGTransactionStatus) => void;
   clearMarriedTransactions: () => void;
+  refreshTransactions: () => Promise<void>;
 
   // Stats & KPIs
   stats: {
@@ -123,6 +124,17 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     localStorage.setItem(MARRIED_TXN_KEY, JSON.stringify(marriedTransactions));
   }, [marriedTransactions]);
 
+  const refreshTransactions = useCallback(async () => {
+    try {
+      const txns = await TransactionsApi.getTransactions();
+      if (Array.isArray(txns)) {
+        setMarriedTransactions(txns);
+      }
+    } catch (err) {
+      console.warn('Backend Transactions API unavailable:', err);
+    }
+  }, []);
+
   // Synchronize live catalog, devices and transactions from FastAPI Backend
   useEffect(() => {
     MasterDataApi.getMasterData()
@@ -145,16 +157,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         console.warn('Backend Devices API unavailable:', err);
       });
 
-    TransactionsApi.getTransactions()
-      .then(txns => {
-        if (Array.isArray(txns)) {
-          setMarriedTransactions(txns);
-        }
-      })
-      .catch(err => {
-        console.warn('Backend Transactions API unavailable:', err);
-      });
-  }, []);
+    refreshTransactions();
+  }, [refreshTransactions]);
 
   const addMasterDataItem = (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>): MasterDataItem => {
     const tempId = `md-${Date.now().toString(36)}`;
@@ -566,6 +570,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
         queueMarryTransaction,
         updateTransactionStatus,
         clearMarriedTransactions,
+        refreshTransactions,
 
         stats,
       }}

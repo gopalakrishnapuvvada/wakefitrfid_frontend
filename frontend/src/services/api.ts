@@ -452,9 +452,11 @@ export const MasterDataApi = {
 export const TransactionsApi = {
   /**
    * GET /api/transactions/
+   * Supports optional status filtering (e.g. 'wip' or 'dispatch')
    */
-  async getTransactions(): Promise<MarriedTransaction[]> {
-    const list = await apiFetch<any[]>('/api/transactions/');
+  async getTransactions(status?: string): Promise<MarriedTransaction[]> {
+    const query = status ? `?status=${encodeURIComponent(status)}` : '';
+    const list = await apiFetch<any[]>(`/api/transactions/${query}`);
     return list.map(t => {
       const prodImg =
         t.productImage ||

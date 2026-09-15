@@ -37,7 +37,7 @@ import { TransactionsApi, getProductImageByMaterial } from '../services/api';
 import { formatToIST, getCurrentIST } from '../utils/dateUtils';
 
 export const ProductValidation: React.FC = () => {
-  const { masterData, devices, marriedTransactions, queueMarryTransaction } = useData();
+  const { masterData, devices, marriedTransactions, queueMarryTransaction, refreshTransactions } = useData();
   const { currentRole } = useAuth();
   const { isDark } = useAppTheme();
 
@@ -506,8 +506,15 @@ export const ProductValidation: React.FC = () => {
   // Background polling listener: captures external POST /post_scan calls (from RS38, curl, or external RFID readers)
   useEffect(() => {
     let isSubscribed = true;
+    let pollCount = 0;
     const checkPending = async () => {
       try {
+        pollCount++;
+        // Periodically refresh transactions from SQLite DB so dispatched items drop out of WIP in real time
+        if (pollCount % 3 === 0 && refreshTransactions) {
+          refreshTransactions();
+        }
+
         const getPendingFn = TransactionsApi.getPendingScan;
         let pending: any;
         if (typeof getPendingFn === 'function') {
@@ -555,7 +562,7 @@ export const ProductValidation: React.FC = () => {
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, [masterData, activeDevice]);
+  }, [masterData, activeDevice, refreshTransactions]);
 
   // Global Hardware Scanner Listener (for physical CipherLab RS38 / Honeywell USB/Bluetooth scanners)
   useEffect(() => {
@@ -839,6 +846,9 @@ export const ProductValidation: React.FC = () => {
       const txn = await queueMarryTransaction(currentScan, currentRole.name);
       setIsQueueing(false);
       setLastCommittedTxn(txn);
+      if (refreshTransactions) {
+        refreshTransactions();
+      }
       // Once submitted, return to the original screen waiting for scanned data
       setCurrentScan(null);
       currentScanRef.current = null;
@@ -922,17 +932,26 @@ export const ProductValidation: React.FC = () => {
     }
   };
 
-  // Maintain only the last 10 transactions for live Shop Floor scan validation
-  const last10Transactions = marriedTransactions.slice(0, 10);
-
-  const filteredMarried = last10Transactions.filter(t =>
-    t.transactionId.toLowerCase().includes(searchText.toLowerCase()) ||
-    t.rfidUniqueId.toLowerCase().includes(searchText.toLowerCase()) ||
-    t.workOrderNo.toLowerCase().includes(searchText.toLowerCase()) ||
-    t.materialCode.toLowerCase().includes(searchText.toLowerCase()) ||
-    t.partNumber.toLowerCase().includes(searchText.toLowerCase()) ||
-    t.deviceName.toLowerCase().includes(searchText.toLowerCase())
+  // Filter for WIP records only - dispatched records belong in history and outbound dispatch portal
+  const wipTransactions = marriedTransactions.filter(
+    t => t.status === 'WIP' || (t.status as string)?.toUpperCase() === 'WIP'
   );
+
+  const filteredWip = wipTransactions.filter(t => {
+    if (!searchText.trim()) return true;
+    const query = searchText.toLowerCase();
+    return (
+      t.transactionId.toLowerCase().includes(query) ||
+      t.rfidUniqueId.toLowerCase().includes(query) ||
+      t.workOrderNo.toLowerCase().includes(query) ||
+      t.materialCode.toLowerCase().includes(query) ||
+      t.partNumber.toLowerCase().includes(query) ||
+      t.deviceName.toLowerCase().includes(query)
+    );
+  });
+
+  // Maintain only the last 10 WIP transactions for live Shop Floor scan validation
+  const filteredMarried = filteredWip.slice(0, 10);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
@@ -1410,7 +1429,7 @@ export const ProductValidation: React.FC = () => {
               <span style={{ fontSize: '16px', fontWeight: 700 }}>
                 FG WIP Transaction Records
               </span>
-              <Tag color="blue">{filteredMarried.length} Recent Records (Last 10)</Tag>
+              <Tag color="blue">{filteredMarried.length} Recent WIP Records (Last 10)</Tag>
             </div>
 
             <Input
@@ -1517,54 +1536,26 @@ export const ProductValidation: React.FC = () => {
               key: 'status',
               width: 130,
               align: 'center',
-              render: (status: 'WIP' | 'Dispatched') => {
-                const isDispatched = status === 'Dispatched';
-                return (
-                  <Tooltip 
-                    title={
-                      isDispatched 
-                        ? 'System State: Verified via Outbound Logistics RFID Dock Portal' 
-                        : 'System State: Work In Progress (Packaged & Married at Line)'
-                    }
+              render: () => (
+                <Tooltip title="System State: Work In Progress (Packaged & Married at Line)">
+                  <Tag
+                    color="warning"
+                    style={{
+                      margin: 0,
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      borderRadius: '12px',
+                      padding: '2px 10px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
                   >
-                    {isDispatched ? (
-                      <Tag
-                        color="success"
-                        style={{
-                          margin: 0,
-                          fontWeight: 800,
-                          fontSize: '11px',
-                          borderRadius: '12px',
-                          padding: '2px 10px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <CheckCircleOutlined />
-                        Dispatched
-                      </Tag>
-                    ) : (
-                      <Tag
-                        color="warning"
-                        style={{
-                          margin: 0,
-                          fontWeight: 800,
-                          fontSize: '11px',
-                          borderRadius: '12px',
-                          padding: '2px 10px',
-                          display: 'inline-flex',
-                          alignItems: 'center',
-                          gap: '4px',
-                        }}
-                      >
-                        <ClockCircleOutlined />
-                        WIP
-                      </Tag>
-                    )}
-                  </Tooltip>
-                );
-              },
+                    <ClockCircleOutlined />
+                    WIP
+                  </Tag>
+                </Tooltip>
+              ),
             },
           ]}
         />
