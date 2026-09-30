@@ -748,7 +748,7 @@ export const ProductValidation: React.FC = () => {
       const mat = masterData[0];
       setCurrentScan({
         readingSuccess: false,
-        failureReason: 'QR Code 2 (Work Order No.) Failed: WO barcode is missing or scratched.',
+        failureReason: '(Work Order No.) Failed: WO barcode is missing or scratched.',
         rfidUniqueId: 'E280117020002164A5B801D3',
         rfidProtocol: 'EPC Gen2 / ISO 18000-6C (UHF 865.7 MHz)',
         rfidSignalRssi: '-46 dBm (Strong)',
@@ -1287,7 +1287,7 @@ export const ProductValidation: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <QrcodeOutlined style={{ color: activeScan.qr1MaterialCode ? (activeScan.matchedFgItem ? '#0284C7' : '#dc2626') : '#f59e0b', fontSize: '16px' }} />
                   <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    2. QR Code 1 (Material Code) ➔ Configured FG Master Data
+                    2.Material Code ➔ Configured FG Master Data
                   </strong>
                 </div>
                 <Tag color={activeScan.qr1MaterialCode ? (activeScan.matchedFgItem ? '#0284C7' : 'error') : 'gold'} style={{ fontWeight: 700 }}>
@@ -1476,7 +1476,7 @@ export const ProductValidation: React.FC = () => {
                   <div style={{ fontSize: '11px', color: activeScan.qr1MaterialCode ? '#b91c1c' : '#64748b', marginTop: '4px' }}>
                     {activeScan.qr1MaterialCode
                       ? 'Foreign Key Constraint: This material code must exist in Master Data before it can be validated or inserted into SQLite.'
-                      : 'Scan QR code 1 on product label using your RS38 handheld to display product details.'}
+                      : 'Scan QR code on product label using your RS38 handheld to display product details.'}
                   </div>
                 </div>
               )}
@@ -1495,7 +1495,7 @@ export const ProductValidation: React.FC = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
                   <FileTextOutlined style={{ color: activeScan.qr2WorkOrderNo ? '#8B5CF6' : '#f59e0b', fontSize: '16px' }} />
                   <strong style={{ fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                    3. QR Code 2 (Work Order Number - WO)
+                    3.Work Order Number
                   </strong>
                 </div>
                 <Tag color={activeScan.qr2WorkOrderNo ? 'purple' : 'gold'} style={{ fontWeight: 700 }}>
