@@ -70,44 +70,39 @@ export type ConnectionType = 'TCP/IP' | 'Serial (RS-232)' | 'USB-HID' | 'Bluetoo
 export type ScanMode = 'Manual Scan' | 'Automatic Scan';
 
 export interface AutoIDDevice {
-  // Identity
-  deviceId: string;              // System-generated UUID
-  id: string;                    // Alias for deviceId
-  displayName: string;           // DisplayName
-  name: string;                  // Alias for displayName
-  assetCode: string;             // AssetCode
-  code: string;                  // Alias for assetCode
-  category: DeviceCategory;      // Category
-  manufacturer: string;          // Manufacturer
-  model: string;                 // Model
-  serialNumber: string;          // SerialNumber
-  macAddress: string;            // MACAddress
+  // Core fields used in Device Management
+  deviceId?: string;
+  id: string;
+  name: string;
+  displayName?: string;
+  ipAddress?: string;
+  macAddress?: string;
+  make?: string;
+  port?: number;
+  createdAt?: string;
+  updatedAt?: string;
 
-  // Assignment
-  stationId: string;             // StationID
-  locationLine: string;          // Alias for stationId
-
-  // Connectivity
-  connectionType: ConnectionType;// ConnectionType
-  ipAddress?: string;            // IPAddress
-  subnetMask?: string;           // SubnetMask e.g. 255.255.255.0
-  gateway?: string;              // Gateway e.g. 192.168.10.1
-  port?: number;                 // Port
-  comPort?: string;              // COMPort
-  connectionParameters?: string; // ConnectionParameters
-
-  // Operation
-  scanMode: ScanMode;            // ScanMode
-  triggerMode: ScanMode;         // Alias for scanMode
-
-  // Runtime
-  status: DeviceStatus;          // Status
-  lastSeen: string;              // LastSeen
-  lastPing: string;              // Alias for lastSeen
-  firmwareVersion: string;       // FirmwareVersion
-  lastError?: string;            // LastError
-
-  // Additional Hardware Telemetry
+  // Compatibility aliases / legacy optional fields
+  assetCode?: string;
+  code?: string;
+  category?: DeviceCategory;
+  manufacturer?: string;
+  model?: string;
+  serialNumber?: string;
+  stationId?: string;
+  locationLine?: string;
+  connectionType?: ConnectionType;
+  subnetMask?: string;
+  gateway?: string;
+  comPort?: string;
+  connectionParameters?: string;
+  scanMode?: ScanMode;
+  triggerMode?: ScanMode;
+  status?: DeviceStatus;
+  lastSeen?: string;
+  lastPing?: string;
+  firmwareVersion?: string;
+  lastError?: string;
   batteryLevel?: number;
   signalStrengthDbm?: number;
   antennaCount?: number;

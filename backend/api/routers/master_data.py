@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from models.master_data import FgCategory, FgStatus, MasterDataItem
 from models.roles import Role
-from models.devices import Device, DeviceCategory, Connection, DeviceStatus
+from models.devices import Device
 from models.transactions import TransactionData
 from schemas.master_data import (
     FgCategoryCreate,
@@ -221,14 +221,12 @@ def update_roles_password_endpoint(
 @router.get("/get_devices_data", response_model=list[DeviceResponse])
 def get_devices_data_endpoint(
     db: Annotated[Session, Depends(get_db)],
-    category_id: str | None = None,
-    status_id: str | None = None,
     search: str | None = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
     from api.routers.devices import get_devices_data
-    return get_devices_data(db, category_id, status_id, search, skip, limit)
+    return get_devices_data(db, search, skip, limit)
 
 
 @router.post("/post_devices_data", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
@@ -491,152 +489,47 @@ def seed_master_data(db: Annotated[Session, Depends(get_db)]):
         if not db.query(Role).filter(Role.id == r["id"]).first():
             db.add(Role(id=r["id"], name=r["name"], password=r["password"], created_by="seed"))
 
-    # 2. Seed Device Lookups
-    device_categories = [
-        {"id": "handheld", "name": "Handheld Mobile Computer"},
-        {"id": "rfid_fixed", "name": "Fixed RFID Reader Portal"},
-        {"id": "gateway", "name": "Edge IoT Gateway"},
-        {"id": "barcode", "name": "Industrial Barcode Scanner"},
-    ]
-    for dc in device_categories:
-        if not db.query(DeviceCategory).filter(DeviceCategory.id == dc["id"]).first():
-            db.add(DeviceCategory(id=dc["id"], name=dc["name"], created_by="seed"))
-
-    connections = [
-        {"id": "tcp_ip", "name": "TCP/IP"},
-        {"id": "serial", "name": "Serial (RS-232)"},
-        {"id": "usb_hid", "name": "USB-HID"},
-        {"id": "bluetooth", "name": "Bluetooth"},
-        {"id": "websocket", "name": "Websocket"},
-    ]
-    for c in connections:
-        if not db.query(Connection).filter(Connection.id == c["id"]).first():
-            db.add(Connection(id=c["id"], name=c["name"], created_by="seed"))
-
-    device_statuses = [
-        {"id": "online", "name": "online"},
-        {"id": "offline", "name": "offline"},
-        {"id": "error", "name": "error"},
-    ]
-    for ds in device_statuses:
-        if not db.query(DeviceStatus).filter(DeviceStatus.id == ds["id"]).first():
-            db.add(DeviceStatus(id=ds["id"], name=ds["name"], created_by="seed"))
-
-    db.flush()
-
-    # 3. Seed Devices
+    # 2. Seed Devices
     initial_devices = [
         {
             "device_id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
-            "display_name": "CIPHER RS38 UHF Reader #01 (Station Line 1)",
-            "asset_code": "HH-CPR-RS38-01",
-            "category_id": "handheld",
-            "manufacturer": "CipherLab",
-            "model": "CipherLab RS38 UHF-RFID Android Rugged Mobile Computer",
-            "serial_number": "SN-CPR-RS38-9921",
+            "name": "CIPHER RS38 UHF Reader #01 (Station Line 1)",
             "mac_address": "00:1F:B5:7C:10:01",
-            "station_id": "Line 1 - Mattress & Recliner Final Pack",
-            "connection_id": "tcp_ip",
             "ip_address": "192.168.10.131",
             "port": 5084,
-            "connection_parameters": "Keep-Alive: 15s, Timeout: 3000ms, Protocol: LLRP",
-            "scan_mode": "Manual Scan",
-            "status_id": "online",
-            "firmware_version": "RS38-UHF-v2.14.0",
-            "last_error": "None (Healthy)",
-            "battery_level": 94,
-            "signal_strength_dbm": -48,
-            "frequency_band": "865-867 MHz (India UHF RFID)",
-            "brand": "CIPHER",
-            "assigned_operator": "Ramesh Kumar (Line 1 QA)",
+            "make": "CipherLab",
         },
         {
             "device_id": "a3bb189e-8bf2-416b-95a4-783285e6834b",
-            "display_name": "CIPHER RS38 UHF Reader #02 (Station Line 2)",
-            "asset_code": "HH-CPR-RS38-02",
-            "category_id": "handheld",
-            "manufacturer": "CipherLab",
-            "model": "CipherLab RS38 UHF-RFID Android Rugged Mobile Computer",
-            "serial_number": "SN-CPR-RS38-9922",
+            "name": "CIPHER RS38 UHF Reader #02 (Station Line 2)",
             "mac_address": "00:1F:B5:7C:10:02",
-            "station_id": "Line 2 - Sofa Assembly & Shrink Wrap",
-            "connection_id": "tcp_ip",
             "ip_address": "192.168.10.132",
             "port": 5084,
-            "connection_parameters": "Keep-Alive: 15s, Timeout: 3000ms, Protocol: LLRP",
-            "scan_mode": "Manual Scan",
-            "status_id": "online",
-            "firmware_version": "RS38-UHF-v2.14.0",
-            "last_error": "None (Healthy)",
-            "battery_level": 88,
-            "signal_strength_dbm": -52,
-            "frequency_band": "865-867 MHz (India UHF RFID)",
-            "brand": "CIPHER",
-            "assigned_operator": "Suresh Patel (Line 2 QA)",
+            "make": "CipherLab",
         },
         {
             "device_id": "dev-rf-01",
-            "display_name": "Impinj Speedway R420 Fixed Portal #1",
-            "asset_code": "FIX-IMP-R420-01",
-            "category_id": "rfid_fixed",
-            "manufacturer": "Impinj",
-            "model": "Impinj Speedway R420 (4-Port UHF)",
-            "serial_number": "SN-IMP-R420-7712",
+            "name": "Impinj Speedway R420 Fixed Portal #1",
             "mac_address": "00:16:25:A1:04:88",
-            "station_id": "Conveyor Main Exit Tunnel (Station 1)",
-            "connection_id": "tcp_ip",
             "ip_address": "192.168.20.101",
             "port": 5084,
-            "connection_parameters": "LLRP Octane Server v7.6, 4-Antennas, 30 dBm",
-            "scan_mode": "Automatic Scan",
-            "status_id": "online",
-            "firmware_version": "Octane v7.6.0.240",
-            "antenna_count": 4,
-            "signal_strength_dbm": 30,
-            "frequency_band": "865.7 - 867.5 MHz",
-            "last_error": "None (Healthy)",
-            "brand": "Impinj",
+            "make": "Impinj",
         },
         {
             "device_id": "dev-rf-02",
-            "display_name": "Zebra FX9600 Industrial RFID Reader Portal #2",
-            "asset_code": "FIX-ZBR-FX96-02",
-            "category_id": "rfid_fixed",
-            "manufacturer": "Zebra",
-            "model": "Zebra FX9600 8-Port High Power",
-            "serial_number": "SN-ZBR-FX96-1049",
+            "name": "Zebra FX9600 Industrial RFID Reader Portal #2",
             "mac_address": "A4:14:37:BC:60:55",
-            "station_id": "Automatic Palletizer Portal #2",
-            "connection_id": "tcp_ip",
             "ip_address": "192.168.20.102",
             "port": 5084,
-            "connection_parameters": "PoE+ Gigabit, 8-Antennas, 31.5 dBm",
-            "scan_mode": "Automatic Scan",
-            "status_id": "error",
-            "firmware_version": "FX9600-v3.10.30",
-            "antenna_count": 8,
-            "signal_strength_dbm": 31,
-            "frequency_band": "865-867 MHz (Max Power 31.5 dBm)",
-            "last_error": "Antenna Port 4 VSWR reflection fault (Reachable but cannot scan)",
-            "brand": "Zebra",
+            "make": "Zebra",
         },
         {
             "device_id": "dev-gw-01",
-            "display_name": "UAIM Edge IoT Hardware Gateway #01",
-            "asset_code": "GW-ADV-UNO-01",
-            "category_id": "gateway",
-            "manufacturer": "Advantech",
-            "model": "Advantech UNO-2484G Industrial Edge Gateway",
-            "serial_number": "SN-ADV-UNO-8812",
+            "name": "UAIM Edge IoT Hardware Gateway #01",
             "mac_address": "00:D0:C9:88:91:01",
-            "station_id": "Shop Floor Line 1 Master Edge Hub",
-            "connection_id": "tcp_ip",
             "ip_address": "192.168.10.10",
             "port": 1883,
-            "connection_parameters": "MQTT Broker & WebSocket Gateway, Dual GbE LAN",
-            "scan_mode": "Automatic Scan",
-            "status_id": "online",
-            "brand": "Advantech",
+            "make": "Advantech",
         },
     ]
 

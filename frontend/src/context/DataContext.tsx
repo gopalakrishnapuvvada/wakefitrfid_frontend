@@ -30,7 +30,7 @@ interface DataContextType {
 
   // Devices
   devices: DeviceItem[];
-  addDevice: (device: Partial<DeviceItem> & { name: string; code: string; category: DeviceCategory }) => DeviceItem;
+  addDevice: (device: Partial<DeviceItem> & { name: string }) => DeviceItem;
   updateDevice: (id: string, updates: Partial<DeviceItem>) => void;
   deleteDevice: (id: string) => void;
   pingDevice: (id: string) => Promise<{ success: boolean; latencyMs: number; message: string }>;
@@ -226,7 +226,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  const addDevice = (device: Partial<DeviceItem> & { name: string; code: string; category: DeviceCategory }): DeviceItem => {
+  const addDevice = (device: Partial<DeviceItem> & { name: string }): DeviceItem => {
     const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
     const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
     const newDevice: DeviceItem = {
@@ -234,40 +234,16 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       id: device.id || uuid,
       displayName: device.displayName || device.name,
       name: device.displayName || device.name,
-      assetCode: (device.assetCode || device.code).toUpperCase().trim(),
-      code: (device.assetCode || device.code).toUpperCase().trim(),
-      category: device.category,
-      manufacturer: device.manufacturer || 'Auto-ID Generic',
-      model: device.model || 'Standard Reader',
-      serialNumber: device.serialNumber || `SN-${Math.floor(100000 + Math.random() * 900000)}`,
-      macAddress: device.macAddress || `00:11:22:${Math.floor(10 + Math.random() * 89)}:AA:BB`,
-      stationId: device.stationId || device.locationLine || 'Line 1 - Final Pack',
-      locationLine: device.stationId || device.locationLine || 'Line 1 - Final Pack',
-      connectionType: device.connectionType || (device.ipAddress ? 'TCP/IP' : 'USB-HID'),
-      ipAddress: device.ipAddress,
-      subnetMask: device.subnetMask,
-      gateway: device.gateway,
-      port: device.port,
-      comPort: device.comPort,
-      connectionParameters: device.connectionParameters,
-      scanMode: device.scanMode || device.triggerMode || 'Manual Scan',
-      triggerMode: device.scanMode || device.triggerMode || 'Manual Scan',
-      status: device.status || 'online',
-      lastSeen: now,
-      lastPing: now,
-      firmwareVersion: device.firmwareVersion || 'v1.0.0',
-      lastError: device.lastError || 'None (Healthy)',
-      batteryLevel: device.batteryLevel,
-      signalStrengthDbm: device.signalStrengthDbm,
-      antennaCount: device.antennaCount,
-      frequencyBand: device.frequencyBand,
-      baudRate: device.baudRate,
-      lastMaintenance: device.lastMaintenance || now.substring(0, 10),
-      assignedOperator: device.assignedOperator,
+      ipAddress: device.ipAddress || '',
+      macAddress: device.macAddress || '',
+      make: device.make || device.manufacturer || 'Unknown',
+      port: device.port ?? 0,
+      createdAt: now,
+      updatedAt: now,
     };
+
     setDevices(prev => [newDevice, ...prev]);
 
-    // Asynchronously commit to backend API (POST /api/master_data/post_devices_data)
     DevicesApi.createDevice(device)
       .then(saved => {
         setDevices(prev => prev.map(d => (d.id === newDevice.id ? saved : d)));
@@ -288,14 +264,11 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
             ...updates,
             name: updates.displayName || updates.name || dev.name,
             displayName: updates.displayName || updates.name || dev.displayName,
-            code: (updates.assetCode || updates.code || dev.code).toUpperCase().trim(),
-            assetCode: (updates.assetCode || updates.code || dev.assetCode).toUpperCase().trim(),
-            locationLine: updates.stationId || updates.locationLine || dev.locationLine,
-            stationId: updates.stationId || updates.locationLine || dev.stationId,
-            triggerMode: updates.scanMode || updates.triggerMode || dev.triggerMode,
-            scanMode: updates.scanMode || updates.triggerMode || dev.scanMode,
-            lastPing: updates.lastSeen || updates.lastPing || dev.lastPing,
-            lastSeen: updates.lastSeen || updates.lastPing || dev.lastSeen,
+            ipAddress: updates.ipAddress || dev.ipAddress,
+            macAddress: updates.macAddress || dev.macAddress,
+            make: updates.make || updates.manufacturer || dev.make,
+            port: updates.port ?? dev.port,
+            updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
           };
           return merged;
         }
@@ -303,7 +276,6 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       })
     );
 
-    // Asynchronously update on backend API (PUT /api/master_data/update_devices_data)
     DevicesApi.updateDevice(id, updates).catch(err => {
       console.warn(`Failed to update device ${id} on backend API:`, err);
     });

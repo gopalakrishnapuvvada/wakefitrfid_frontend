@@ -83,7 +83,7 @@ def main():
     assert len(devices) > 0, "Expected registered devices"
     print_success(f"Received {len(devices)} devices:")
     for d in devices[:3]:
-        print(f"         • [{d['category']}] {d['displayName']} (ID: {d['deviceId']}, IP: {d.get('ipAddress', 'N/A')})")
+        print(f"         • {d['displayName']} (ID: {d['deviceId']}, IP: {d.get('ipAddress', 'N/A')}, MAC: {d.get('macAddress', 'N/A')})")
 
     print_header("6. TEST POST /api/master_data/post_devices_data")
     import time
@@ -91,15 +91,11 @@ def main():
     new_device_payload = {
         "deviceId": test_device_id,
         "displayName": "Zebra DS3678 Industrial Barcode Reader",
-        "assetCode": f"BC-ZBR-{int(time.time()) % 1000}",
-        "category": "barcode",
-        "connectionType": "USB-HID",
-        "stationId": "Line 2 Packaging",
-        "status": "online",
-        "scanMode": "Manual Scan",
-        "brand": "Zebra",
-        "model": "DS3678-SR Ultra-Rugged Scanner",
-        "serialNumber": "SN-ZBR-99014",
+        "name": "Zebra DS3678 Industrial Barcode Reader",
+        "ipAddress": "192.168.20.42",
+        "macAddress": "00:11:22:33:44:55",
+        "make": "Zebra",
+        "port": 8080,
     }
     res_post_dev = client.post("/api/master_data/post_devices_data", json=new_device_payload)
     assert res_post_dev.status_code == 201, f"Device registration failed: {res_post_dev.text}"
@@ -109,15 +105,17 @@ def main():
     print_header("7. TEST PUT /api/master_data/update_devices_data")
     update_payload = {
         "deviceId": test_device_id,
-        "status": "error",
-        "lastError": "Optic laser head recalibration needed",
-        "firmwareVersion": "v5.2.1"
+        "name": "Zebra DS3678 Scanner Updated",
+        "ipAddress": "192.168.20.43",
+        "macAddress": "00:11:22:33:44:66",
+        "make": "Zebra",
+        "port": 9090
     }
     res_update_dev = client.put("/api/master_data/update_devices_data", json=update_payload)
     assert res_update_dev.status_code == 200, f"Device update failed: {res_update_dev.text}"
     updated_dev = res_update_dev.json()
-    assert updated_dev["status"] == "error"
-    print_success(f"Updated device: Status '{updated_dev['status']}', Error '{updated_dev['lastError']}'")
+    assert updated_dev["name"] == "Zebra DS3678 Scanner Updated"
+    print_success(f"Updated device: Name '{updated_dev['name']}', IP '{updated_dev['ipAddress']}', Port '{updated_dev['port']}'")
 
     print_header("8. TEST GET FG MASTER DATA ITEMS (/api/master_data/)")
     res_items = client.get("/api/master_data/")

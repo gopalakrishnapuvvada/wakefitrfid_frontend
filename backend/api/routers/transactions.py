@@ -86,8 +86,9 @@ def get_transactions(
             or_(
                 TransactionData.scanner_device == device_id.strip(),
                 TransactionData.scanner_device.ilike(dev_term),
-                TransactionData.device.has(Device.display_name.ilike(dev_term)),
-                TransactionData.device.has(Device.asset_code.ilike(dev_term)),
+                TransactionData.device.has(Device.name.ilike(dev_term)),
+                TransactionData.device.has(Device.ip_address.ilike(dev_term)),
+                TransactionData.device.has(Device.mac_address.ilike(dev_term)),
             )
         )
 
@@ -251,13 +252,14 @@ def create_marriage_transaction(
         dev = db.query(Device).filter(
             or_(
                 Device.device_id == payload.scanner_device,
-                Device.asset_code == payload.scanner_device,
-                Device.display_name.ilike(f"%{payload.scanner_device}%"),
+                Device.name.ilike(f"%{payload.scanner_device}%"),
+                Device.ip_address == payload.scanner_device,
+                Device.mac_address == payload.scanner_device,
             )
         ).first()
         if dev:
             valid_device_id = dev.device_id
-            if "portal" in dev.display_name.lower() or "dock" in dev.display_name.lower():
+            if "portal" in dev.name.lower() or "dock" in dev.name.lower():
                 is_dispatch = True
         else:
             first_dev = db.query(Device).first()
@@ -405,9 +407,14 @@ def post_can(
 
     dev_id = payload.scanner_device or "dev-cpr-01"
     dev = db.query(Device).filter(
-        or_(Device.device_id == dev_id, Device.asset_code == dev_id)
+        or_(
+            Device.device_id == dev_id,
+            Device.name == dev_id,
+            Device.ip_address == dev_id,
+            Device.mac_address == dev_id,
+        )
     ).first()
-    dev_name = dev.display_name if dev else "CIPHER RS38 UHF Reader #01 (Station Line 1)"
+    dev_name = dev.name if dev else "CIPHER RS38 UHF Reader #01 (Station Line 1)"
     actual_dev_id = dev.device_id if dev else dev_id
 
     matched_data = None

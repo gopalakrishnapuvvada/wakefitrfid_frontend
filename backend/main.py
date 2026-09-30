@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from utils.database import Base, engine, SessionLocal
+from utils.database import Base, engine, SessionLocal, migrate_legacy_devices_table
 import models  # Imports and registers all models: Role, Device, MasterDataItem, TransactionData, ProductionRecord
 from api.routers.production import router as production_router
 from api.routers.roles import router as roles_router
@@ -9,12 +9,15 @@ from api.routers.devices import router as devices_router
 from api.routers.master_data import router as master_data_router
 from api.routers.transactions import router as transactions_router
 
+# Migrate the old expanded device table before creating any missing tables.
+migrate_legacy_devices_table()
+
 # Create all database tables on startup
 Base.metadata.create_all(bind=engine)
 
 
 def init_required_db_records():
-    """Ensure core statuses, devices, and categories required by foreign keys are present."""
+    """Ensure core transaction statuses and sample devices are present."""
     with SessionLocal() as db:
         # 1. StatusTransactionData: 'wip' and 'dispatch'
         for st_id, st_name in [("wip", "Wip"), ("dispatch", "Dispatch")]:
@@ -26,15 +29,11 @@ def init_required_db_records():
             db.add(
                 models.Device(
                     device_id="dev-cpr-01",
-                    display_name="CIPHER RS38 UHF Reader #01 (Station Line 1)",
-                    asset_code="HH-CPR-RS38-01",
-                    category_id="handheld",
-                    manufacturer="CipherLab",
-                    model="CipherLab RS38 UHF-RFID Android Rugged Mobile Computer",
-                    connection_id="tcp_ip",
-                    scan_mode="Manual Scan",
-                    status_id="online",
-                    brand="CIPHER",
+                    name="CIPHER RS38 UHF Reader #01 (Station Line 1)",
+                    ip_address="192.168.10.131",
+                    mac_address="00:1F:B5:7C:10:01",
+                    make="CipherLab",
+                    port=5084,
                     created_by="system",
                 )
             )
@@ -44,15 +43,11 @@ def init_required_db_records():
             db.add(
                 models.Device(
                     device_id="dev-rf-01",
-                    display_name="Impinj Speedway R420 Fixed Portal #1",
-                    asset_code="FIX-IMP-R420-01",
-                    category_id="rfid_fixed",
-                    manufacturer="Impinj",
-                    model="Impinj Speedway R420 (4-Port UHF)",
-                    connection_id="tcp_ip",
-                    scan_mode="Automatic Scan",
-                    status_id="online",
-                    brand="Impinj",
+                    name="Impinj Speedway R420 Fixed Portal #1",
+                    ip_address="192.168.20.101",
+                    mac_address="00:16:25:A1:04:88",
+                    make="Impinj",
+                    port=5084,
                     created_by="system",
                 )
             )

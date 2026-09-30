@@ -11,11 +11,8 @@ from schemas.master_data import (
 )
 from schemas.roles import RoleLoginRequest, RoleResponse, RoleUpdatePasswordRequest
 from schemas.devices import (
-    ConnectionResponse,
-    DeviceCategoryResponse,
     DeviceCreateRequest,
     DeviceResponse,
-    DeviceStatusResponse,
     DeviceUpdateRequest,
 )
 from schemas.transactions import (
@@ -38,9 +35,6 @@ __all__ = [
     "RoleResponse",
     "RoleUpdatePasswordRequest",
     "RoleLoginRequest",
-    "DeviceCategoryResponse",
-    "ConnectionResponse",
-    "DeviceStatusResponse",
     "DeviceCreateRequest",
     "DeviceUpdateRequest",
     "DeviceResponse",
