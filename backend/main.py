@@ -145,6 +145,12 @@ def global_clear_fixed_rfid():
     from api.routers.transactions import clear_fixed_rfid
     return clear_fixed_rfid()
 
+@app.post("/api/clear")
+@app.post("/clear")
+def global_clear_transactions(db=Depends(get_db)):
+    from api.routers.transactions import clear_all_transactions
+    return clear_all_transactions(db)
+
 # 5. Production Records (legacy dummy)
 app.include_router(production_router, prefix="/api/production")
 app.include_router(production_router, prefix="/production-records")
