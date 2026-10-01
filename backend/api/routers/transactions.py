@@ -1,4 +1,8 @@
+import base64
+import json
+import os
 from datetime import datetime, timezone, timedelta
+from pathlib import Path
 from typing import Annotated, Any
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -29,6 +33,44 @@ from utils.dependencies import get_db
 router = APIRouter(
     tags=["FG Marriage & Scan Transactions"],
 )
+
+UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads" / "transactions"
+UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
+
+
+def save_transaction_images(txn_id: str, images: list[str]) -> list[str]:
+    """Saves base64 images to uploads/transactions/ directory on disk and returns relative paths."""
+    saved_paths: list[str] = []
+    if not images:
+        return saved_paths
+
+    for idx, img_data in enumerate(images[:8], start=1):
+        if not img_data or not isinstance(img_data, str):
+            continue
+        try:
+            ext = ".jpg"
+            if "data:image/" in img_data and ";base64," in img_data:
+                header, img_data = img_data.split(";base64,", 1)
+                if "png" in header.lower():
+                    ext = ".png"
+                elif "webp" in header.lower():
+                    ext = ".webp"
+
+            clean_b64 = img_data.strip().replace("\n", "").replace("\r", "")
+            raw_bytes = base64.b64decode(clean_b64)
+
+            clean_txn_id = txn_id.replace("/", "_").replace("\\", "_").replace(" ", "_")
+            filename = f"{clean_txn_id}_{idx}{ext}"
+            saved_file_path = UPLOAD_DIR / filename
+            with open(saved_file_path, "wb") as f:
+                f.write(raw_bytes)
+
+            rel_path = f"uploads/transactions/{filename}"
+            saved_paths.append(rel_path)
+        except Exception as e:
+            print(f"Warning: Failed to save image {idx} for transaction {txn_id}: {e}")
+
+    return saved_paths
 
 # In-memory buffer for latest scanned label awaiting user decision (Queue vs Cancel)
 _latest_pending_scan: dict[str, Any] | None = None
@@ -275,6 +317,13 @@ def create_marriage_transaction(
         db.add(StatusTransactionData(id=status_code, name=status_code.capitalize(), created_by="system"))
         db.flush()
 
+    # Process and save attached photo evidence (1 to 8 images)
+    saved_img_paths: list[str] = []
+    if payload.images:
+        saved_img_paths = save_transaction_images(txn_id, payload.images)
+    elif payload.image_paths:
+        saved_img_paths = payload.image_paths
+
     new_txn = TransactionData(
         transaction_id=txn_id,
         factory_rfid_tag_id=clean_rfid,
@@ -286,6 +335,7 @@ def create_marriage_transaction(
         product_validation_timestamp=now,
         status_id=status_code,
         label_lookup_timestamp=now if is_dispatch else None,
+        image_paths=json.dumps(saved_img_paths) if saved_img_paths else None,
         created_by=payload.created_by or payload.operator_role or "Operator",
     )
 
@@ -335,6 +385,36 @@ def create_marriage_transaction(
         .filter(TransactionData.transaction_id == new_txn.transaction_id)
         .first()
     )
+
+
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+@router.get("/{transaction_id}/details", response_model=TransactionResponse)
+def get_transaction_by_id(
+    transaction_id: str,
+    db: Annotated[Session, Depends(get_db)],
+):
+    """
+    On-demand detail fetcher for a single transaction.
+    Returns full transaction metadata, relationships, and all hosted image URLs.
+    """
+    txn = (
+        db.query(TransactionData)
+        .options(
+            joinedload(TransactionData.master_item),
+            joinedload(TransactionData.device),
+            joinedload(TransactionData.status),
+        )
+        .filter(
+            or_(
+                TransactionData.transaction_id == transaction_id,
+                TransactionData.factory_rfid_tag_id == transaction_id,
+            )
+        )
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail=f"Transaction '{transaction_id}' not found.")
+    return txn
 
 
 @router.put("/{transaction_id}/status", response_model=TransactionResponse)

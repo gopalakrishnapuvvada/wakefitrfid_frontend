@@ -157,6 +157,9 @@ export interface MarriedTransaction {
   status: FGTransactionStatus; // 'WIP' | 'Dispatched'
   wipScanTimestamp?: string;   // Timestamp when WIP scan/marriage occurred
   dispatchScanTimestamp?: string; // Timestamp when outbound dispatch scan occurred
+  imagePaths?: string[];       // Relative paths of photos saved on disk
+  imageUrls?: string[];        // Full/relative URLs to photos for display
+  imageCount?: number;         // Count of attached photos
   dbStatus: 'COMMITTED_TO_SQLITE' | 'QUEUED' | 'SYNCED_MES';
   sqliteDatabasePath: string; // "/data/sqlite/wakefit_fg_marriage.db"
   sqliteRecordId: number;

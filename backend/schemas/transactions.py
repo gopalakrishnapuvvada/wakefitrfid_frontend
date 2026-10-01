@@ -11,6 +11,8 @@ class StatusTransactionDataResponse(BaseModel):
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
+import json
+
 class TransactionCreateRequest(BaseModel):
     transaction_id: str | None = Field(None, alias="transactionId")
     factory_rfid_tag_id: str | None = Field(None, alias="rfidUniqueId")
@@ -22,6 +24,8 @@ class TransactionCreateRequest(BaseModel):
     status_id: str | None = Field("wip", alias="status")
     operator_role: str | None = Field("admin", alias="operatorRole")
     created_by: str | None = Field(None, alias="createdBy")
+    images: list[str] | None = Field(None, description="List of 1 to 8 Base64 encoded JPEG/PNG image strings")
+    image_paths: list[str] | None = Field(None, alias="imagePaths")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -69,6 +73,9 @@ class TransactionResponse(BaseModel):
     status_id: str = Field(..., alias="statusId")
     product_validation_timestamp: datetime | None = Field(None, alias="productValidationTimestamp")
     label_lookup_timestamp: datetime | None = Field(None, alias="labelLookupTimestamp")
+    image_paths: list[str] = Field(default_factory=list, alias="imagePaths")
+    image_urls: list[str] = Field(default_factory=list, alias="imageUrls")
+    image_count: int = Field(0, alias="imageCount")
     created_on: datetime = Field(..., alias="createdOn")
     timestamp: str  # Formatted timestamp for frontend table display
 
@@ -118,6 +125,31 @@ class TransactionResponse(BaseModel):
                 else:
                     prod_img = "/products/mattress_1.jpg"
 
+            # Parse captured transaction image paths & URLs
+            raw_img_paths = getattr(data, "image_paths", None)
+            img_paths_list: list[str] = []
+            img_urls_list: list[str] = []
+            if raw_img_paths:
+                if isinstance(raw_img_paths, list):
+                    img_paths_list = [str(p) for p in raw_img_paths if p]
+                elif isinstance(raw_img_paths, str):
+                    raw_str = raw_img_paths.strip()
+                    if raw_str.startswith("[") and raw_str.endswith("]"):
+                        try:
+                            parsed = json.loads(raw_str)
+                            if isinstance(parsed, list):
+                                img_paths_list = [str(p) for p in parsed if p]
+                        except Exception:
+                            img_paths_list = [raw_str]
+                    elif raw_str:
+                        img_paths_list = [p.strip() for p in raw_str.split(",") if p.strip()]
+
+            for p in img_paths_list:
+                if p.startswith("http://") or p.startswith("https://") or p.startswith("/"):
+                    img_urls_list.append(p)
+                else:
+                    img_urls_list.append(f"/{p}")
+
             time_dt = data.product_validation_timestamp or data.created_on
             if time_dt:
                 c_on = time_dt
@@ -147,9 +179,13 @@ class TransactionResponse(BaseModel):
                 "status_id": data.status_id,
                 "product_validation_timestamp": data.product_validation_timestamp,
                 "label_lookup_timestamp": data.label_lookup_timestamp,
+                "image_paths": img_paths_list,
+                "image_urls": img_urls_list,
+                "image_count": len(img_paths_list),
                 "created_on": data.created_on,
                 "timestamp": time_str,
             }
+        return data
         return data
 
 

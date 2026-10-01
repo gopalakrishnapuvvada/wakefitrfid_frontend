@@ -1,5 +1,5 @@
 from datetime import datetime, timezone
-from sqlalchemy import DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from utils.database import Base
@@ -48,7 +48,6 @@ class TransactionData(Base):
 
     sno: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     transaction_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    factory_rfid_tag_id: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
     factory_rfid_tag_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
     work_order_no: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
 
@@ -82,6 +81,7 @@ class TransactionData(Base):
         DateTime(timezone=True),
         nullable=True,
     )
+    image_paths: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_on: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),

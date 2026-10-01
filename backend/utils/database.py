@@ -176,3 +176,22 @@ def migrate_master_data_items_table() -> None:
             connection.commit()
 
 
+def migrate_transactions_data_table() -> None:
+    """Ensure image_paths column exists in transactions_data SQLite table."""
+    if engine.dialect.name != "sqlite":
+        return
+
+    with engine.connect() as connection:
+        columns = connection.exec_driver_sql("PRAGMA table_info(transactions_data)").fetchall()
+        if not columns:
+            return
+
+        col_names = [column[1] for column in columns]
+        if "image_paths" not in col_names:
+            try:
+                connection.exec_driver_sql("ALTER TABLE transactions_data ADD COLUMN image_paths TEXT")
+                connection.commit()
+            except Exception as e:
+                print(f"Notice: transactions_data image_paths column addition: {e}")
+
+

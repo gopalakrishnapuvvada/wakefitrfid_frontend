@@ -480,11 +480,60 @@ export const TransactionsApi = {
         status: (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
         wipScanTimestamp: wipTime,
         dispatchScanTimestamp: dispatchTime,
+        imagePaths: t.imagePaths || t.image_paths || [],
+        imageUrls: t.imageUrls || t.image_urls || [],
+        imageCount: t.imageCount || t.image_count || (t.imageUrls ? t.imageUrls.length : 0),
         dbStatus: 'COMMITTED_TO_SQLITE' as const,
         sqliteDatabasePath: '/data/sqlite/wakefit_fg_marriage.db',
         sqliteRecordId: t.sno || 1,
       };
     });
+  },
+
+  /**
+   * GET /api/transactions/{id}
+   * Lazy load full transaction details including captured photo URLs.
+   */
+  async getTransactionDetails(id: string): Promise<MarriedTransaction> {
+    const t = await apiFetch<any>(`/api/transactions/${encodeURIComponent(id)}`);
+    const prodImg =
+      t.productImage ||
+      t.fgImage ||
+      t.product_image ||
+      t.fg_image ||
+      getProductImageByMaterial(t.materialCode || t.material_code, t.category);
+
+    const createdTime = formatToIST(t.createdOn || t.created_on || t.productValidationTimestamp || t.product_validation_timestamp || t.timestamp);
+    const wipTime = formatToIST(t.productValidationTimestamp || t.product_validation_timestamp || t.createdOn || t.created_on || t.timestamp);
+    const dispatchTime = (t.labelLookupTimestamp || t.label_lookup_timestamp)
+      ? formatToIST(t.labelLookupTimestamp || t.label_lookup_timestamp)
+      : (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? createdTime : undefined);
+
+    return {
+      id: t.id || t.transactionId || t.transaction_id,
+      transactionId: t.transactionId || t.transaction_id,
+      timestamp: createdTime,
+      rfidUniqueId: t.rfidUniqueId || t.rfid_unique_id || t.factory_rfid_tag_id || '',
+      workOrderNo: t.workOrderNo || t.work_order_no || '',
+      materialCode: t.materialCode || t.material_code,
+      partNumber: t.partNumber || t.part_number || '',
+      productName: t.productName || t.product_name || `FG Item (${t.materialCode || t.material_code})`,
+      category: t.category || 'Mattress',
+      mrp: 0,
+      productImage: prodImg,
+      deviceId: t.deviceId || t.device_id || t.scanner_device || '',
+      deviceName: t.deviceName || t.device_name || 'Reader',
+      operatorRole: t.operatorRole || t.operator_role || t.created_by || 'Line Operator',
+      status: (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
+      wipScanTimestamp: wipTime,
+      dispatchScanTimestamp: dispatchTime,
+      imagePaths: t.imagePaths || t.image_paths || [],
+      imageUrls: t.imageUrls || t.image_urls || [],
+      imageCount: t.imageCount || t.image_count || (t.imageUrls ? t.imageUrls.length : 0),
+      dbStatus: 'COMMITTED_TO_SQLITE' as const,
+      sqliteDatabasePath: '/data/sqlite/wakefit_fg_marriage.db',
+      sqliteRecordId: t.sno || 1,
+    };
   },
 
   /**

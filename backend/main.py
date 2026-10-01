@@ -1,7 +1,17 @@
+import os
+from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
-from utils.database import Base, engine, SessionLocal, migrate_legacy_devices_table, migrate_master_data_items_table
+from utils.database import (
+    Base,
+    engine,
+    SessionLocal,
+    migrate_legacy_devices_table,
+    migrate_master_data_items_table,
+    migrate_transactions_data_table,
+)
 import models  # Imports and registers all models: Role, Device, MasterDataItem, TransactionData, ProductionRecord
 from api.routers.production import router as production_router
 from api.routers.roles import router as roles_router
@@ -9,9 +19,10 @@ from api.routers.devices import router as devices_router
 from api.routers.master_data import router as master_data_router
 from api.routers.transactions import router as transactions_router
 
-# Migrate the old expanded device table before creating any missing tables.
+# Migrate the old tables before creating any missing tables.
 migrate_legacy_devices_table()
 migrate_master_data_items_table()
+migrate_transactions_data_table()
 
 # Create all database tables on startup
 Base.metadata.create_all(bind=engine)
@@ -40,11 +51,18 @@ try:
 except Exception as e:
     print(f"Startup DB initialization notice: {e}")
 
+# Ensure uploads directory exists
+UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
+(UPLOADS_DIR / "transactions").mkdir(parents=True, exist_ok=True)
+
 app = FastAPI(
     title="Wakefit FG Auto-ID, Devices, Roles & Master Data API",
     version="2.5.0",
     description="Backend API for Wakefit Finished Goods (FG) Marriage, Device Management, Roles & Catalog.",
 )
+
+# Mount /uploads for static image retrieval
+app.mount("/uploads", StaticFiles(directory=str(UPLOADS_DIR)), name="uploads")
 
 # Enable CORS for frontend web integration
 app.add_middleware(
@@ -150,4 +168,3 @@ def health_check():
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
-
