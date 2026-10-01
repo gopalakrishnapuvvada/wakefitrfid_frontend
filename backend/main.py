@@ -17,42 +17,14 @@ Base.metadata.create_all(bind=engine)
 
 
 def init_required_db_records():
-    """Ensure core transaction statuses and sample devices are present."""
+    """Ensure core transaction statuses are present and unique index exists."""
     with SessionLocal() as db:
         # 1. StatusTransactionData: 'wip' and 'dispatch'
         for st_id, st_name in [("wip", "Wip"), ("dispatch", "Dispatch")]:
             if not db.query(models.StatusTransactionData).filter(models.StatusTransactionData.id == st_id).first():
                 db.add(models.StatusTransactionData(id=st_id, name=st_name, created_by="system"))
 
-        # 2. Handheld Scanner Device: 'dev-cpr-01'
-        if not db.query(models.Device).filter(models.Device.device_id == "dev-cpr-01").first():
-            db.add(
-                models.Device(
-                    device_id="dev-cpr-01",
-                    name="CIPHER RS38 UHF Reader #01 (Station Line 1)",
-                    ip_address="192.168.10.131",
-                    mac_address="00:1F:B5:7C:10:01",
-                    make="CipherLab",
-                    port=5084,
-                    created_by="system",
-                )
-            )
-
-        # 3. Fixed Portal Reader: 'dev-rf-01'
-        if not db.query(models.Device).filter(models.Device.device_id == "dev-rf-01").first():
-            db.add(
-                models.Device(
-                    device_id="dev-rf-01",
-                    name="Impinj Speedway R420 Fixed Portal #1",
-                    ip_address="192.168.20.101",
-                    mac_address="00:16:25:A1:04:88",
-                    make="Impinj",
-                    port=5084,
-                    created_by="system",
-                )
-            )
-
-        # 4. Ensure global unique index on factory_rfid_tag_id in transactions_data
+        # 2. Ensure global unique index on factory_rfid_tag_id in transactions_data
         try:
             from sqlalchemy import text
             db.execute(text("CREATE UNIQUE INDEX IF NOT EXISTS uq_transactions_data_rfid ON transactions_data(factory_rfid_tag_id)"))

@@ -405,17 +405,21 @@ def post_can(
     raw_mat = (payload.material_code or "").strip()
     raw_wo = (payload.work_order_no or "").strip()
 
-    dev_id = payload.scanner_device or "dev-cpr-01"
-    dev = db.query(Device).filter(
-        or_(
-            Device.device_id == dev_id,
-            Device.name == dev_id,
-            Device.ip_address == dev_id,
-            Device.mac_address == dev_id,
-        )
-    ).first()
-    dev_name = dev.name if dev else "CIPHER RS38 UHF Reader #01 (Station Line 1)"
-    actual_dev_id = dev.device_id if dev else dev_id
+    dev_id = (payload.scanner_device or "").strip()
+    dev = None
+    if dev_id:
+        dev = db.query(Device).filter(
+            or_(
+                Device.device_id == dev_id,
+                Device.name == dev_id,
+                Device.ip_address == dev_id,
+                Device.mac_address == dev_id,
+            )
+        ).first()
+    if not dev:
+        dev = db.query(Device).first()
+    dev_name = dev.name if dev else (dev_id or "Default Scanner")
+    actual_dev_id = dev.device_id if dev else (dev_id or "default-scanner")
 
     matched_data = None
     if raw_mat:

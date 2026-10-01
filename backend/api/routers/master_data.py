@@ -476,8 +476,8 @@ def delete_master_data_item(
 @router.post("/seed")
 def seed_master_data(db: Annotated[Session, Depends(get_db)]):
     """
-    Seeds initial standard roles, devices, FG categories, FG statuses, and realistic
-    Wakefit finished goods items matching the frontend mock catalog.
+    Seeds essential lookup tables (Roles, FG Categories, FG Statuses)
+    without inserting hardcoded mock devices or mock products.
     """
     # 1. Seed Roles
     roles_data = [
@@ -489,55 +489,7 @@ def seed_master_data(db: Annotated[Session, Depends(get_db)]):
         if not db.query(Role).filter(Role.id == r["id"]).first():
             db.add(Role(id=r["id"], name=r["name"], password=r["password"], created_by="seed"))
 
-    # 2. Seed Devices
-    initial_devices = [
-        {
-            "device_id": "f81d4fae-7dec-11d0-a765-00a0c91e6bf6",
-            "name": "CIPHER RS38 UHF Reader #01 (Station Line 1)",
-            "mac_address": "00:1F:B5:7C:10:01",
-            "ip_address": "192.168.10.131",
-            "port": 5084,
-            "make": "CipherLab",
-        },
-        {
-            "device_id": "a3bb189e-8bf2-416b-95a4-783285e6834b",
-            "name": "CIPHER RS38 UHF Reader #02 (Station Line 2)",
-            "mac_address": "00:1F:B5:7C:10:02",
-            "ip_address": "192.168.10.132",
-            "port": 5084,
-            "make": "CipherLab",
-        },
-        {
-            "device_id": "dev-rf-01",
-            "name": "Impinj Speedway R420 Fixed Portal #1",
-            "mac_address": "00:16:25:A1:04:88",
-            "ip_address": "192.168.20.101",
-            "port": 5084,
-            "make": "Impinj",
-        },
-        {
-            "device_id": "dev-rf-02",
-            "name": "Zebra FX9600 Industrial RFID Reader Portal #2",
-            "mac_address": "A4:14:37:BC:60:55",
-            "ip_address": "192.168.20.102",
-            "port": 5084,
-            "make": "Zebra",
-        },
-        {
-            "device_id": "dev-gw-01",
-            "name": "UAIM Edge IoT Hardware Gateway #01",
-            "mac_address": "00:D0:C9:88:91:01",
-            "ip_address": "192.168.10.10",
-            "port": 1883,
-            "make": "Advantech",
-        },
-    ]
-
-    for dev_dict in initial_devices:
-        if not db.query(Device).filter(Device.device_id == dev_dict["device_id"]).first():
-            db.add(Device(**dev_dict, created_by="seed", updated_by="seed"))
-
-    # 4. Seed FG Categories
+    # 2. Seed FG Categories
     categories_data = [
         {"id": "cat-mattress", "name": "Mattress"},
         {"id": "cat-sofa", "name": "Sofa"},
@@ -549,7 +501,7 @@ def seed_master_data(db: Annotated[Session, Depends(get_db)]):
         if not db.query(FgCategory).filter(FgCategory.id == cat["id"]).first():
             db.add(FgCategory(id=cat["id"], name=cat["name"], created_by="system"))
 
-    # 5. Seed FG Statuses
+    # 3. Seed FG Statuses
     statuses_data = [
         {"id": "active", "name": "Active"},
         {"id": "on_hold", "name": "On hold"},
@@ -559,135 +511,6 @@ def seed_master_data(db: Annotated[Session, Depends(get_db)]):
         if not db.query(FgStatus).filter(FgStatus.id == st["id"]).first():
             db.add(FgStatus(id=st["id"], name=st["name"], created_by="system"))
 
-    db.flush()
-
-    # 6. Seed Realistic Master Data Items
-    initial_items = [
-        {
-            "id": "md-001",
-            "fg_image": [
-                "https://wakefit-co.s3.ap-south-1.amazonaws.com/img/npl_raw_images/WSFANPRN1FOBL.jpg",
-                "/products/mattress_1.jpg",
-            ],
-            "material_code": "WAK-MAT-787208",
-            "part_number": "FG-ORT-KNG-08",
-            "category_id": "cat-mattress",
-            "model": "Orthopaedic Memory Foam",
-            "product_description": "Orthopaedic Memory Foam Mattress (King - 78x72x8 inch)",
-            "length_mm": 1981,
-            "width_mm": 1828,
-            "height_mm": 203,
-            "net_weight": 28.5,
-            "gross_weight": 31.2,
-            "package_type": "Rolled Vacuum Box",
-            "status_id": "active",
-        },
-        {
-            "id": "md-002",
-            "fg_image": [
-                "/products/mattress_2.jpg",
-                "https://wakefit-co.s3.ap-south-1.amazonaws.com/img/npl_raw_images/WSFANPRN1FOBL.jpg",
-            ],
-            "material_code": "WAK-MAT-756006",
-            "part_number": "FG-ORT-QUN-06",
-            "category_id": "cat-mattress",
-            "model": "Dual Comfort Foam",
-            "product_description": "Dual Comfort Foam Mattress (Queen - 75x60x6 inch)",
-            "length_mm": 1905,
-            "width_mm": 1524,
-            "height_mm": 152,
-            "net_weight": 21.0,
-            "gross_weight": 23.4,
-            "package_type": "Rolled Vacuum Box",
-            "status_id": "active",
-        },
-        {
-            "id": "md-003",
-            "fg_image": [
-                "https://wakefit-co.s3.ap-south-1.amazonaws.com/img/npl_raw_images/WSFANPRN1FOBL.jpg",
-                "/products/sofa_1.jpg",
-            ],
-            "material_code": "WAK-SOF-NAP-3ST",
-            "part_number": "FG-SOF-NAP-NAVY",
-            "category_id": "cat-sofa",
-            "model": "Napper 3-Seater Premium",
-            "product_description": "Napper 3-Seater Premium Fabric Sofa (Navy Blue)",
-            "length_mm": 2100,
-            "width_mm": 880,
-            "height_mm": 850,
-            "net_weight": 48.0,
-            "gross_weight": 52.5,
-            "package_type": "Corrugated Carton Box",
-            "status_id": "active",
-        },
-        {
-            "id": "md-004",
-            "fg_image": [
-                "/products/recliner_1.jpg",
-            ],
-            "material_code": "WAK-REC-MOT-BRN",
-            "part_number": "FG-REC-MOT-CHEST",
-            "category_id": "cat-recliner",
-            "model": "Motorized Single Seater",
-            "product_description": "Motorized Single Seater Recliner with Cup Holder (Chestnut Brown)",
-            "length_mm": 980,
-            "width_mm": 940,
-            "height_mm": 1050,
-            "net_weight": 42.0,
-            "gross_weight": 46.8,
-            "package_type": "Heavy-duty Corrugated Crate",
-            "status_id": "active",
-        },
-        {
-            "id": "md-005",
-            "fg_image": [
-                "/products/bed_1.jpg",
-            ],
-            "material_code": "WAK-BED-TEK-QN",
-            "part_number": "FG-BED-TEK-QN-WLN",
-            "category_id": "cat-bed",
-            "model": "Teak Wood Queen Bed",
-            "product_description": "Teak Wood Queen Bed with Hydraulic Storage (Walnut)",
-            "length_mm": 2080,
-            "width_mm": 1620,
-            "height_mm": 900,
-            "net_weight": 85.0,
-            "gross_weight": 92.0,
-            "package_type": "Heavy-duty Corrugated Crate",
-            "status_id": "active",
-        },
-        {
-            "id": "md-006",
-            "fg_image": [
-                "/products/pillow_1.jpg",
-            ],
-            "material_code": "WAK-PIL-MEM-STD",
-            "part_number": "FG-PIL-MEM-02PK",
-            "category_id": "cat-pillow",
-            "model": "Cooling Gel Memory Foam Pillow",
-            "product_description": "Memory Foam Pillow with Cooling Gel (Pack of 2)",
-            "length_mm": 600,
-            "width_mm": 400,
-            "height_mm": 120,
-            "net_weight": 2.8,
-            "gross_weight": 3.4,
-            "package_type": "Corrugated Carton Box",
-            "status_id": "active",
-        },
-    ]
-
-    seeded_count = 0
-    for item_dict in initial_items:
-        existing = db.query(MasterDataItem).filter(MasterDataItem.id == item_dict["id"]).first()
-        if not existing:
-            new_rec = MasterDataItem(
-                **item_dict,
-                created_by="seed",
-                updated_by="seed",
-            )
-            db.add(new_rec)
-            seeded_count += 1
-
     db.commit()
 
     total_categories = db.query(FgCategory).count()
@@ -695,12 +518,9 @@ def seed_master_data(db: Annotated[Session, Depends(get_db)]):
     total_items = db.query(MasterDataItem).count()
 
     return {
-        "message": "Master data seeded successfully",
-        "newlySeededItems": seeded_count,
+        "message": "Master data system lookups seeded successfully",
+        "newlySeededItems": 0,
         "totalCategories": total_categories,
         "totalStatuses": total_statuses,
         "totalMasterDataItems": total_items,
     }
-
-
-
