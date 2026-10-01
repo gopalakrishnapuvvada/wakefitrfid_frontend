@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from utils.database import Base, engine, SessionLocal, migrate_legacy_devices_table
+from utils.database import Base, engine, SessionLocal, migrate_legacy_devices_table, migrate_master_data_items_table
 import models  # Imports and registers all models: Role, Device, MasterDataItem, TransactionData, ProductionRecord
 from api.routers.production import router as production_router
 from api.routers.roles import router as roles_router
@@ -11,6 +11,7 @@ from api.routers.transactions import router as transactions_router
 
 # Migrate the old expanded device table before creating any missing tables.
 migrate_legacy_devices_table()
+migrate_master_data_items_table()
 
 # Create all database tables on startup
 Base.metadata.create_all(bind=engine)

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Card, 
-  Table, 
   Tag, 
   Button, 
   message, 
@@ -11,16 +10,12 @@ import {
   Form, 
   Input, 
   Typography,
-  Alert
 } from 'antd';
 import { 
-  UserSwitchOutlined, 
   KeyOutlined, 
   SafetyCertificateOutlined, 
   ControlOutlined, 
   BarcodeOutlined, 
-  CheckCircleFilled, 
-  CloseCircleFilled,
   LockOutlined,
   CheckOutlined
 } from '@ant-design/icons';
@@ -87,58 +82,6 @@ export const RoleAdmin: React.FC = () => {
 
   const targetRoleData = allRoles.find(r => r.id === selectedRoleForPassword);
 
-  // Simplified Permission Matrix Data
-  const rolePermissionsSummary = [
-    {
-      module: 'Operations Dashboard',
-      description: 'View real-time factory metrics, married records & throughput',
-      admin: true,
-      supervisor: true,
-      operator: false,
-    },
-    {
-      module: 'Product Validation & Scanning',
-      description: 'Scan RFID + 2D DataMatrix to match Finished Goods catalog',
-      admin: true,
-      supervisor: true,
-      operator: true,
-    },
-    {
-      module: 'FG Label Lookup & Print',
-      description: 'Search, look up & print single/batch compliance shipping labels',
-      admin: true,
-      supervisor: true,
-      operator: false,
-    },
-    {
-      module: 'Scan Transactions History',
-      description: 'Filter, audit & export married RFID + WO + Material transactions with time ranges',
-      admin: true,
-      supervisor: true,
-      operator: false,
-    },
-    {
-      module: 'Master Data Management',
-      description: 'Create, view, update & delete (CRUD) SKU master materials and part numbers',
-      admin: true,
-      supervisor: false,
-      operator: false,
-    },
-    {
-      module: 'Device Management',
-      description: 'Register, configure & diagnose RFID portals, scanners & gateways',
-      admin: true,
-      supervisor: false,
-      operator: false,
-    },
-    {
-      module: 'Role Administration & Passwords',
-      description: 'Manage user access control and reset passwords for all roles',
-      admin: true,
-      supervisor: false,
-      operator: false,
-    },
-  ];
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>

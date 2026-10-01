@@ -117,8 +117,7 @@ class MasterDataItemCreate(BaseModel):
     length_mm: int | None = Field(None, alias="lengthMm")
     width_mm: int | None = Field(None, alias="widthMm")
     height_mm: int | None = Field(None, alias="heightMm")
-    net_weight: float | None = Field(None, alias="netWeight")
-    gross_weight: float | None = Field(None, alias="grossWeight")
+    color: str | None = None
     package_type: str | None = Field(None, alias="packageType")
     status_id: str | None = Field(None, alias="statusId")
     status: str | None = None  # Accepts status name (e.g. "Active") or ID
@@ -149,8 +148,7 @@ class MasterDataItemUpdate(BaseModel):
     length_mm: int | None = Field(None, alias="lengthMm")
     width_mm: int | None = Field(None, alias="widthMm")
     height_mm: int | None = Field(None, alias="heightMm")
-    net_weight: float | None = Field(None, alias="netWeight")
-    gross_weight: float | None = Field(None, alias="grossWeight")
+    color: str | None = None
     package_type: str | None = Field(None, alias="packageType")
     status_id: str | None = Field(None, alias="statusId")
     status: str | None = None
@@ -182,8 +180,7 @@ class MasterDataItemResponse(BaseModel):
     product_description: str | None = Field(None, alias="productDescription")
     product_name: str | None = Field(None, alias="productName")
     dimensions: DimensionsSchema
-    net_weight: float | None = Field(None, alias="netWeight")
-    gross_weight: float | None = Field(None, alias="grossWeight")
+    color: str | None = None
     package_type: str | None = Field(None, alias="packageType")
     status_id: str = Field(..., alias="statusId")
     status: str | None = None
@@ -215,13 +212,6 @@ class MasterDataItemResponse(BaseModel):
 
             prod_name = getattr(data, "model", None) or getattr(data, "product_description", None)
 
-            net_wt = getattr(data, "net_weight", None)
-            if net_wt is not None:
-                net_wt = float(net_wt)
-
-            gross_wt = getattr(data, "gross_weight", None)
-            if gross_wt is not None:
-                gross_wt = float(gross_wt)
 
             raw_imgs = getattr(data, "fg_image", None)
             img_list = normalize_fg_image(raw_imgs)
@@ -238,8 +228,7 @@ class MasterDataItemResponse(BaseModel):
                 "product_description": data.product_description,
                 "product_name": prod_name,
                 "dimensions": dimensions_dict,
-                "net_weight": net_wt,
-                "gross_weight": gross_wt,
+                "color": getattr(data, "color", None),
                 "package_type": data.package_type,
                 "status_id": data.status_id,
                 "status": status_name,

@@ -40,14 +40,12 @@ export interface MasterDataItem {
     widthMm: number;
     heightMm: number;
   };
-  netWeight: number;          // Net Weight (KG)
-  grossWeight: number;        // Gross Weight (KG)
+  color?: string;             // Product Color (e.g. Navy Blue, Classic Grey, Beige)
   packageType: string;        // Package Type e.g. Rolled Vacuum Box, Corrugated Carton
   status: MasterDataStatus;   // Status: Active, On hold, Inactive
 
   // Optional/compat aliases
   productName?: string;
-  weightKg?: number;
   images?: string[];
   isActive?: boolean;
   uom?: string;

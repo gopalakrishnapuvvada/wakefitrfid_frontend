@@ -105,8 +105,7 @@ export const MasterData: React.FC = () => {
         lengthMm: item.dimensions?.lengthMm || 0,
         widthMm: item.dimensions?.widthMm || 0,
         heightMm: item.dimensions?.heightMm || 0,
-        netWeight: item.netWeight ?? item.weightKg ?? 0,
-        grossWeight: item.grossWeight ?? (item.netWeight ? item.netWeight + 2.5 : 0),
+        color: item.color || '',
         packageType: item.packageType || 'Rolled Vacuum Box',
         status: item.status || (item.isActive !== false ? 'Active' : 'Inactive'),
       });
@@ -119,8 +118,7 @@ export const MasterData: React.FC = () => {
         model: '',
         packageType: 'Rolled Vacuum Box',
         status: 'Active' as MasterDataStatus,
-        netWeight: 20.0,
-        grossWeight: 22.5,
+        color: 'Classic Grey',
         lengthMm: 1981,
         widthMm: 1828,
         heightMm: 203,
@@ -191,14 +189,12 @@ export const MasterData: React.FC = () => {
           widthMm: Number(values.widthMm) || 0,
           heightMm: Number(values.heightMm) || 0,
         },
-        netWeight: Number(values.netWeight) || 0,
-        grossWeight: Number(values.grossWeight) || 0,
+        color: (values.color || '').trim(),
         packageType: values.packageType,
         status: values.status as MasterDataStatus,
 
         // Compat fields
         productName: values.productDescription.trim(),
-        weightKg: Number(values.netWeight) || 0,
         isActive: values.status === 'Active',
       };
 
@@ -311,7 +307,7 @@ export const MasterData: React.FC = () => {
 
   const handleExportCSV = () => {
     const headers = [
-      'FG Image,Material Code,Part Number,Category,Model,Product Description,Dimensions (LxWxH mm),Net Weight (kg),Gross Weight (kg),Package Type,Status'
+      'FG Image,Material Code,Part Number,Category,Model,Product Description,Dimensions (LxWxH mm),Color,Package Type,Status'
     ];
     const rows = filteredData.map(item => {
       let img = '';
@@ -325,12 +321,11 @@ export const MasterData: React.FC = () => {
       const model = item.model || '';
       const desc = (item.productDescription || item.productName || '').replace(/"/g, '""');
       const dim = `${item.dimensions?.lengthMm || 0}x${item.dimensions?.widthMm || 0}x${item.dimensions?.heightMm || 0}`;
-      const netW = item.netWeight ?? item.weightKg ?? 0;
-      const grossW = item.grossWeight ?? 0;
+      const col = item.color || '';
       const pkg = item.packageType || '';
       const st = item.status || (item.isActive ? 'Active' : 'Inactive');
 
-      return `"${img}","${item.materialCode}","${item.partNumber}","${item.category}","${model}","${desc}","${dim}","${netW}","${grossW}","${pkg}","${st}"`;
+      return `"${img}","${item.materialCode}","${item.partNumber}","${item.category}","${model}","${desc}","${dim}","${col}","${pkg}","${st}"`;
     });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
@@ -351,6 +346,7 @@ export const MasterData: React.FC = () => {
       item.materialCode.toLowerCase().includes(searchText.toLowerCase()) ||
       item.partNumber.toLowerCase().includes(searchText.toLowerCase()) ||
       model.toLowerCase().includes(searchText.toLowerCase()) ||
+      (item.color || '').toLowerCase().includes(searchText.toLowerCase()) ||
       desc.toLowerCase().includes(searchText.toLowerCase());
 
     const matchesCategory = selectedCategory === 'ALL' || item.category === selectedCategory;
@@ -587,7 +583,7 @@ export const MasterData: React.FC = () => {
             {
               title: 'Dimensions',
               key: 'dimensions',
-              width: 160,
+              width: 150,
               render: (_, r) => {
                 const l = r.dimensions?.lengthMm || 0;
                 const w = r.dimensions?.widthMm || 0;
@@ -598,6 +594,17 @@ export const MasterData: React.FC = () => {
                   </span>
                 );
               },
+            },
+            {
+              title: 'Color',
+              dataIndex: 'color',
+              key: 'color',
+              width: 130,
+              render: (color: string) => color ? (
+                <Tag color="cyan" style={{ fontWeight: 600 }}>{color}</Tag>
+              ) : (
+                <span style={{ color: '#94a3b8' }}>—</span>
+              ),
             },
             {
               title: 'Status',
@@ -790,12 +797,8 @@ export const MasterData: React.FC = () => {
                 </span>
               </Descriptions.Item>
 
-              <Descriptions.Item label="Net Weight">
-                <strong>{Number(detailItem.netWeight ?? detailItem.weightKg ?? 0).toFixed(2)} kg</strong>
-              </Descriptions.Item>
-
-              <Descriptions.Item label="Gross Weight">
-                <strong>{Number(detailItem.grossWeight ?? 0).toFixed(2)} kg</strong>
+              <Descriptions.Item label="Color">
+                {detailItem.color ? <Tag color="cyan" style={{ fontWeight: 700 }}>{detailItem.color}</Tag> : <strong style={{ color: '#64748b' }}>—</strong>}
               </Descriptions.Item>
 
               <Descriptions.Item label="Package Type">
@@ -1139,29 +1142,19 @@ export const MasterData: React.FC = () => {
             </Col>
           </Row>
 
-          {/* Row 4: Weights, Package Type, Status */}
+          {/* Row 4: Color, Package Type, Status */}
           <Row gutter={16}>
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={8}>
               <Form.Item 
-                name="netWeight" 
-                label="Net Weight"
-                rules={[{ required: true, message: 'Net weight is required' }]}
+                name="color" 
+                label="Color"
+                rules={[{ required: true, message: 'Color is required' }]}
               >
-                <InputNumber min={0} step={0.1} style={{ width: '100%' }} placeholder="28.5" addonAfter="kg" />
+                <Input placeholder="e.g. Navy Blue, Classic Grey, Beige" />
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={6}>
-              <Form.Item 
-                name="grossWeight" 
-                label="Gross Weight"
-                rules={[{ required: true, message: 'Gross weight is required' }]}
-              >
-                <InputNumber min={0} step={0.1} style={{ width: '100%' }} placeholder="31.2" addonAfter="kg" />
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={8}>
               <Form.Item 
                 name="packageType" 
                 label="Package Type"
@@ -1175,7 +1168,7 @@ export const MasterData: React.FC = () => {
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={6}>
+            <Col xs={24} sm={8}>
               <Form.Item 
                 name="status" 
                 label="Status"

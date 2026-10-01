@@ -115,7 +115,7 @@
         "widthMm": 1828,
         "heightMm": 203
       },
-      "netWeight": 28.5,
+      "color": "Classic Grey",
       "warrantyYears": 10,
       "fgImage": "/products/mattress_1.jpg"
     }
@@ -134,7 +134,7 @@
   "category": "Mattress",
   "mrp": 21999,
   "dimensions": { "lengthMm": 1981, "widthMm": 1828, "heightMm": 254 },
-  "netWeight": 32.0,
+  "color": "Navy Blue",
   "warrantyYears": 10
 }
 ```

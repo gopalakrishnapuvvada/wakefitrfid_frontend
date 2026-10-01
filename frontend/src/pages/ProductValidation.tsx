@@ -1426,20 +1426,15 @@ export const ProductValidation: React.FC = () => {
                           </div>
 
                           <div>
-                            <span style={{ color: '#64748b', display: 'block' }}>Net / Gross Weight:</span>
+                            <span style={{ color: '#64748b', display: 'block' }}>Color:</span>
                             <strong>
-                              {activeScan.matchedFgItem.netWeight} kg / {activeScan.matchedFgItem.grossWeight} kg
+                              {activeScan.matchedFgItem.color || activeScan.matchedFgItem.colorVariant || 'Classic Grey / Navy'}
                             </strong>
                           </div>
 
                           <div>
                             <span style={{ color: '#64748b', display: 'block' }}>Package Type:</span>
                             <strong>{activeScan.matchedFgItem.packageType}</strong>
-                          </div>
-
-                          <div>
-                            <span style={{ color: '#64748b', display: 'block' }}>Color Variant:</span>
-                            <strong>{activeScan.matchedFgItem.colorVariant}</strong>
                           </div>
 
                           <div>

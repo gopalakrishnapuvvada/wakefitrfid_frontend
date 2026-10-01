@@ -75,8 +75,7 @@ class MasterDataItem(Base):
     width_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
     height_mm: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
-    net_weight: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
-    gross_weight: Mapped[float | None] = mapped_column(Numeric(10, 2), nullable=True)
+    color: Mapped[str | None] = mapped_column(String(100), nullable=True)
     package_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
 
     status_id: Mapped[str] = mapped_column(

@@ -458,7 +458,7 @@ Work Order No:  ${activeWorkOrder || 'N/A'}
 Product Name:   ${currentProduct.productDescription || currentProduct.productName}
 Category:       ${currentProduct.category}
 Dimensions:     ${currentProduct.dimensions.lengthMm} x ${currentProduct.dimensions.widthMm} x ${currentProduct.dimensions.heightMm} mm
-Net Weight:     ${(currentProduct.netWeight ?? currentProduct.weightKg ?? 25).toFixed(2)} kg
+Color:          ${currentProduct.color || 'Standard'}
 Batch Number:   ${activeBatch}
 Scanner Device: SICK RFU630-13100 Fixed RFID Reader
 Read Timestamp: ${new Date().toISOString()}

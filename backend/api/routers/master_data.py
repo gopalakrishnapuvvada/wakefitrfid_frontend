@@ -338,8 +338,7 @@ def create_master_data_item(
         length_mm=length,
         width_mm=width,
         height_mm=height,
-        net_weight=payload.net_weight,
-        gross_weight=payload.gross_weight,
+        color=payload.color,
         package_type=payload.package_type,
         status_id=stat_id,
         created_by=payload.created_by or "admin",
@@ -406,10 +405,8 @@ def update_master_data_item(
         if payload.height_mm is not None:
             item.height_mm = payload.height_mm
 
-    if payload.net_weight is not None:
-        item.net_weight = payload.net_weight
-    if payload.gross_weight is not None:
-        item.gross_weight = payload.gross_weight
+    if payload.color is not None:
+        item.color = payload.color
     if payload.package_type is not None:
         item.package_type = payload.package_type
 
