@@ -1,5 +1,9 @@
+from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Annotated
+try:
+    from typing import Any, Dict, List, Optional, Union
+except ImportError:
+    from typing_extensions import Annotated, Optional, Union, List, Dict, Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -13,16 +17,16 @@ from utils.dependencies import get_db
 router = APIRouter(tags=["Auto-ID Hardware Devices"])
 
 
-def _normalize_name(value: str | None) -> str:
+def _normalize_name(value: Optional[str]) -> str:
     name = (value or '').strip()
     return name or 'Unnamed Device'
 
 
-@router.get('/get_devices_data', response_model=list[DeviceResponse])
-@router.get('/', response_model=list[DeviceResponse])
+@router.get('/get_devices_data', response_model=List[DeviceResponse])
+@router.get('/', response_model=List[DeviceResponse])
 def get_devices_data(
-    db: Annotated[Session, Depends(get_db)],
-    search: str | None = None,
+    db: Session = Depends(get_db),
+    search: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
@@ -45,7 +49,7 @@ def get_devices_data(
 @router.get('/{device_id}', response_model=DeviceResponse)
 def get_device_by_id(
     device_id: str,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     clean_id = device_id.strip()
     device = (
@@ -71,7 +75,7 @@ def get_device_by_id(
 @router.post('/', response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
 def post_devices_data(
     payload: DeviceCreateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     device_id = payload.device_id or payload.id or str(uuid4())
     if db.query(Device).filter(Device.device_id == device_id).first():
@@ -103,7 +107,7 @@ def post_devices_data(
 @router.put('/', response_model=DeviceResponse)
 def update_devices_data(
     payload: DeviceUpdateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     target_id = payload.device_id or payload.id
     if not target_id:
@@ -137,7 +141,7 @@ def update_devices_data(
 def update_device_by_path(
     device_id: str,
     payload: DeviceUpdateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     payload.device_id = device_id
     return update_devices_data(payload=payload, db=db)
@@ -146,7 +150,7 @@ def update_device_by_path(
 @router.delete('/{device_id}')
 def delete_device(
     device_id: str,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     device = db.query(Device).filter(Device.device_id == device_id).first()
     if not device:
@@ -160,7 +164,7 @@ def delete_device(
 @router.post('/{device_id}/ping')
 def ping_device(
     device_id: str,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     device = db.query(Device).filter(Device.device_id == device_id).first()
     if not device:

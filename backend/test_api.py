@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any, Dict, List, Optional, Union
 """
 Wakefit Finished Goods (FG) Auto-ID, Devices, Roles & Master Data
 End-to-End API Test Suite

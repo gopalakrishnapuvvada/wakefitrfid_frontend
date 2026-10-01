@@ -1,6 +1,7 @@
+from __future__ import annotations
 from datetime import datetime
 import json
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -13,18 +14,18 @@ class FgCategoryBase(BaseModel):
 
 
 class FgCategoryCreate(BaseModel):
-    id: str | None = None
+    id: Optional[str] = None
     name: str
-    created_by: str | None = Field(default="admin", alias="createdBy")
+    created_by: Optional[str] = Field(default="admin", alias="createdBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class FgCategoryResponse(FgCategoryBase):
     created_on: datetime = Field(..., alias="createdOn")
-    created_by: str | None = Field(None, alias="createdBy")
-    updated_on: datetime | None = Field(None, alias="updatedOn")
-    updated_by: str | None = Field(None, alias="updatedBy")
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    updated_on: Optional[datetime] = Field(None, alias="updatedOn")
+    updated_by: Optional[str] = Field(None, alias="updatedBy")
 
 
 # --- Status Schemas ---
@@ -36,25 +37,25 @@ class FgStatusBase(BaseModel):
 
 
 class FgStatusCreate(BaseModel):
-    id: str | None = None
+    id: Optional[str] = None
     name: str
-    created_by: str | None = Field(default="admin", alias="createdBy")
+    created_by: Optional[str] = Field(default="admin", alias="createdBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class FgStatusResponse(FgStatusBase):
     created_on: datetime = Field(..., alias="createdOn")
-    created_by: str | None = Field(None, alias="createdBy")
-    updated_on: datetime | None = Field(None, alias="updatedOn")
-    updated_by: str | None = Field(None, alias="updatedBy")
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    updated_on: Optional[datetime] = Field(None, alias="updatedOn")
+    updated_by: Optional[str] = Field(None, alias="updatedBy")
 
 
 # --- Dimensions Helper Schema ---
 class DimensionsSchema(BaseModel):
-    length_mm: int | None = Field(None, alias="lengthMm")
-    width_mm: int | None = Field(None, alias="widthMm")
-    height_mm: int | None = Field(None, alias="heightMm")
+    length_mm: Optional[int] = Field(None, alias="lengthMm")
+    width_mm: Optional[int] = Field(None, alias="widthMm")
+    height_mm: Optional[int] = Field(None, alias="heightMm")
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
@@ -75,11 +76,11 @@ def is_valid_image_url(url: Any) -> bool:
     return False
 
 
-def normalize_fg_image(val: Any) -> list[str]:
+def normalize_fg_image(val: Any) -> List[str]:
     """Ensures fg_image is a list of up to 4 valid image URL strings (HTTP/HTTPS or relative path). Rejects raw Base64 data."""
     if val is None:
         return []
-    raw_list: list[Any] = []
+    raw_list: List[Any] = []
     if isinstance(val, list):
         raw_list = val
     elif isinstance(val, str):
@@ -105,23 +106,23 @@ def normalize_fg_image(val: Any) -> list[str]:
 
 # --- Master Data Item Schemas ---
 class MasterDataItemCreate(BaseModel):
-    id: str | None = None
-    fg_image: list[str] = Field(default_factory=list, alias="fgImage")
+    id: Optional[str] = None
+    fg_image: List[str] = Field(default_factory=list, alias="fgImage")
     material_code: str = Field(..., alias="materialCode")
     part_number: str = Field(..., alias="partNumber")
-    category_id: str | None = Field(None, alias="categoryId")
-    category: str | None = None  # Accepts category name (e.g. "Mattress") or ID
-    model: str | None = None
-    product_description: str | None = Field(None, alias="productDescription")
-    dimensions: DimensionsSchema | None = None
-    length_mm: int | None = Field(None, alias="lengthMm")
-    width_mm: int | None = Field(None, alias="widthMm")
-    height_mm: int | None = Field(None, alias="heightMm")
-    color: str | None = None
-    package_type: str | None = Field(None, alias="packageType")
-    status_id: str | None = Field(None, alias="statusId")
-    status: str | None = None  # Accepts status name (e.g. "Active") or ID
-    created_by: str | None = Field(default="admin", alias="createdBy")
+    category_id: Optional[str] = Field(None, alias="categoryId")
+    category: Optional[str] = None  # Accepts category name (e.g. "Mattress") or ID
+    model: Optional[str] = None
+    product_description: Optional[str] = Field(None, alias="productDescription")
+    dimensions: Optional[DimensionsSchema] = None
+    length_mm: Optional[int] = Field(None, alias="lengthMm")
+    width_mm: Optional[int] = Field(None, alias="widthMm")
+    height_mm: Optional[int] = Field(None, alias="heightMm")
+    color: Optional[str] = None
+    package_type: Optional[str] = Field(None, alias="packageType")
+    status_id: Optional[str] = Field(None, alias="statusId")
+    status: Optional[str] = None  # Accepts status name (e.g. "Active") or ID
+    created_by: Optional[str] = Field(default="admin", alias="createdBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -137,22 +138,22 @@ class MasterDataItemCreate(BaseModel):
 
 
 class MasterDataItemUpdate(BaseModel):
-    fg_image: list[str] | None = Field(None, alias="fgImage")
-    material_code: str | None = Field(None, alias="materialCode")
-    part_number: str | None = Field(None, alias="partNumber")
-    category_id: str | None = Field(None, alias="categoryId")
-    category: str | None = None
-    model: str | None = None
-    product_description: str | None = Field(None, alias="productDescription")
-    dimensions: DimensionsSchema | None = None
-    length_mm: int | None = Field(None, alias="lengthMm")
-    width_mm: int | None = Field(None, alias="widthMm")
-    height_mm: int | None = Field(None, alias="heightMm")
-    color: str | None = None
-    package_type: str | None = Field(None, alias="packageType")
-    status_id: str | None = Field(None, alias="statusId")
-    status: str | None = None
-    updated_by: str | None = Field(default="admin", alias="updatedBy")
+    fg_image: Optional[List[str]] = Field(None, alias="fgImage")
+    material_code: Optional[str] = Field(None, alias="materialCode")
+    part_number: Optional[str] = Field(None, alias="partNumber")
+    category_id: Optional[str] = Field(None, alias="categoryId")
+    category: Optional[str] = None
+    model: Optional[str] = None
+    product_description: Optional[str] = Field(None, alias="productDescription")
+    dimensions: Optional[DimensionsSchema] = None
+    length_mm: Optional[int] = Field(None, alias="lengthMm")
+    width_mm: Optional[int] = Field(None, alias="widthMm")
+    height_mm: Optional[int] = Field(None, alias="heightMm")
+    color: Optional[str] = None
+    package_type: Optional[str] = Field(None, alias="packageType")
+    status_id: Optional[str] = Field(None, alias="statusId")
+    status: Optional[str] = None
+    updated_by: Optional[str] = Field(default="admin", alias="updatedBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -170,24 +171,24 @@ class MasterDataItemUpdate(BaseModel):
 
 class MasterDataItemResponse(BaseModel):
     id: str
-    fg_image: list[str] = Field(default_factory=list, alias="fgImage")
-    images: list[str] = Field(default_factory=list, alias="images")
+    fg_image: List[str] = Field(default_factory=list, alias="fgImage")
+    images: List[str] = Field(default_factory=list, alias="images")
     material_code: str = Field(..., alias="materialCode")
     part_number: str = Field(..., alias="partNumber")
     category_id: str = Field(..., alias="categoryId")
-    category: str | None = None
-    model: str | None = None
-    product_description: str | None = Field(None, alias="productDescription")
-    product_name: str | None = Field(None, alias="productName")
+    category: Optional[str] = None
+    model: Optional[str] = None
+    product_description: Optional[str] = Field(None, alias="productDescription")
+    product_name: Optional[str] = Field(None, alias="productName")
     dimensions: DimensionsSchema
-    color: str | None = None
-    package_type: str | None = Field(None, alias="packageType")
+    color: Optional[str] = None
+    package_type: Optional[str] = Field(None, alias="packageType")
     status_id: str = Field(..., alias="statusId")
-    status: str | None = None
+    status: Optional[str] = None
     created_on: datetime = Field(..., alias="createdOn")
-    created_by: str | None = Field(None, alias="createdBy")
-    updated_on: datetime | None = Field(None, alias="updatedOn")
-    updated_by: str | None = Field(None, alias="updatedBy")
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    updated_on: Optional[datetime] = Field(None, alias="updatedOn")
+    updated_by: Optional[str] = Field(None, alias="updatedBy")
 
     model_config = ConfigDict(
         from_attributes=True,
@@ -243,7 +244,7 @@ class MasterDataItemResponse(BaseModel):
 class MasterDataListResponse(BaseModel):
     success: bool = True
     count: int
-    data: list[MasterDataItemResponse]
+    data: List[MasterDataItemResponse]
 
     model_config = ConfigDict(populate_by_name=True)
 

@@ -1,5 +1,6 @@
+from __future__ import annotations
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
@@ -7,20 +8,20 @@ class RoleResponse(BaseModel):
     id: str
     name: str
     password: str
-    created_on: datetime | None = Field(None, alias="createdOn")
-    created_by: str | None = Field(None, alias="createdBy")
-    updated_on: datetime | None = Field(None, alias="updatedOn")
-    updated_by: str | None = Field(None, alias="updatedBy")
+    created_on: Optional[datetime] = Field(None, alias="createdOn")
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    updated_on: Optional[datetime] = Field(None, alias="updatedOn")
+    updated_by: Optional[str] = Field(None, alias="updatedBy")
 
     model_config = ConfigDict(populate_by_name=True, from_attributes=True)
 
 
 class RoleUpdatePasswordRequest(BaseModel):
-    id: str | None = None
-    role_id: str | None = Field(None, alias="roleId")
-    name: str | None = None
+    id: Optional[str] = None
+    role_id: Optional[str] = Field(None, alias="roleId")
+    name: Optional[str] = None
     new_password: str = Field(..., alias="newPassword")
-    updated_by: str | None = Field("admin", alias="updatedBy")
+    updated_by: Optional[str] = Field("admin", alias="updatedBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -37,7 +38,7 @@ class RoleUpdatePasswordRequest(BaseModel):
 
 class RoleLoginRequest(BaseModel):
     role_id: str = Field(..., alias="roleId")
-    password: str | None = None
+    password: Optional[str] = None
 
     model_config = ConfigDict(populate_by_name=True)
 

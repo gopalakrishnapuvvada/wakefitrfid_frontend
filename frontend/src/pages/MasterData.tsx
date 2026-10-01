@@ -172,6 +172,57 @@ export const MasterData: React.FC = () => {
     try {
       const values = await form.validateFields();
       
+      const cleanMat = values.materialCode.toUpperCase().trim();
+      const cleanPart = values.partNumber.toUpperCase().trim();
+
+      // 1. Unique Key Validation: Material Code
+      const dupMat = masterData.find(
+        m => m.materialCode.toUpperCase().trim() === cleanMat && (!editingItem || (m.id !== editingItem.id && m.materialCode !== editingItem.materialCode))
+      );
+      if (dupMat) {
+        Modal.warning({
+          title: 'Duplicate Material Code Warning',
+          icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+          content: (
+            <div style={{ marginTop: '8px' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#1e293b' }}>
+                Material Code <strong>"{cleanMat}"</strong> already exists in Master Data (SKU: {dupMat.materialCode}, Model: {dupMat.model || 'N/A'}).
+              </p>
+              <p style={{ marginTop: '8px', marginBottom: 0, color: '#64748b', fontSize: '13px' }}>
+                Each Master Data item must have a unique Material Code.
+              </p>
+            </div>
+          ),
+          okText: 'Got It',
+          okButtonProps: { type: 'primary' },
+        });
+        return;
+      }
+
+      // 2. Unique Key Validation: Part Number
+      const dupPart = masterData.find(
+        m => m.partNumber.toUpperCase().trim() === cleanPart && (!editingItem || (m.id !== editingItem.id && m.partNumber !== editingItem.partNumber))
+      );
+      if (dupPart) {
+        Modal.warning({
+          title: 'Duplicate Part Number Warning',
+          icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+          content: (
+            <div style={{ marginTop: '8px' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#1e293b' }}>
+                Part Number <strong>"{cleanPart}"</strong> already exists in Master Data (SKU: {dupPart.materialCode}, Model: {dupPart.model || 'N/A'}).
+              </p>
+              <p style={{ marginTop: '8px', marginBottom: 0, color: '#64748b', fontSize: '13px' }}>
+                Each Master Data item must have a unique Part Number.
+              </p>
+            </div>
+          ),
+          okText: 'Got It',
+          okButtonProps: { type: 'primary' },
+        });
+        return;
+      }
+
       const finalImages = modalImages
         .filter(u => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.toLowerCase().includes('base64') && u.length <= 500)
         .slice(0, 4);
@@ -179,8 +230,8 @@ export const MasterData: React.FC = () => {
       const payload: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'> = {
         fgImage: finalImages.length > 0 ? finalImages : [NO_IMAGE_FALLBACK],
         images: finalImages,
-        materialCode: values.materialCode.toUpperCase().trim(),
-        partNumber: values.partNumber.toUpperCase().trim(),
+        materialCode: cleanMat,
+        partNumber: cleanPart,
         category: values.category,
         model: values.model.trim(),
         productDescription: values.productDescription.trim(),
@@ -198,19 +249,37 @@ export const MasterData: React.FC = () => {
         isActive: values.status === 'Active',
       };
 
-      if (editingItem) {
-        updateMasterDataItem(editingItem.id, payload);
-        message.success(`Updated Master SKU: ${payload.materialCode}`);
-        if (detailItem && detailItem.id === editingItem.id) {
-          setDetailItem({ ...detailItem, ...payload });
+      try {
+        if (editingItem) {
+          const updated = await updateMasterDataItem(editingItem.id, payload);
+          message.success(`Updated Master SKU: ${payload.materialCode}`);
+          if (detailItem && detailItem.id === editingItem.id) {
+            setDetailItem({ ...detailItem, ...updated });
+          }
+        } else {
+          await addMasterDataItem(payload);
+          message.success(`Registered New Master SKU: ${payload.materialCode}`);
         }
-      } else {
-        addMasterDataItem(payload);
-        message.success(`Registered New Master SKU: ${payload.materialCode}`);
+
+        setIsModalOpen(false);
+        form.resetFields();
+      } catch (apiErr: any) {
+        const errorMsg = apiErr?.message || 'Server rejected the request due to a duplicate constraint or validation error.';
+        Modal.warning({
+          title: 'Duplicate Validation Warning',
+          icon: <ExclamationCircleOutlined style={{ color: '#faad14' }} />,
+          content: (
+            <div style={{ marginTop: '8px' }}>
+              <p style={{ margin: 0, fontSize: '14px', color: '#1e293b' }}>
+                {errorMsg}
+              </p>
+            </div>
+          ),
+          okText: 'Understood',
+          okButtonProps: { type: 'primary' },
+        });
       }
 
-      setIsModalOpen(false);
-      form.resetFields();
     } catch (err) {
       console.error('Form validation failed', err);
     }

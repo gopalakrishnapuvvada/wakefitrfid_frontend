@@ -1,5 +1,9 @@
+from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Annotated
+try:
+    from typing import Any, Dict, List, Optional, Union
+except ImportError:
+    from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import or_
@@ -14,9 +18,9 @@ router = APIRouter(
 )
 
 
-@router.get("/get_roles_data", response_model=list[RoleResponse])
-@router.get("/", response_model=list[RoleResponse])
-def get_roles_data(db: Annotated[Session, Depends(get_db)]):
+@router.get("/get_roles_data", response_model=List[RoleResponse])
+@router.get("/", response_model=List[RoleResponse])
+def get_roles_data(db: Session = Depends(get_db)):
     """Retrieve all operator roles and their configuration."""
     return db.query(Role).order_by(Role.id).all()
 
@@ -25,7 +29,7 @@ def get_roles_data(db: Annotated[Session, Depends(get_db)]):
 @router.put("/password")
 def update_roles_password(
     payload: RoleUpdatePasswordRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     """Update role password by role ID or name."""
     identifier = payload.id or payload.role_id or payload.name
@@ -64,7 +68,7 @@ def update_roles_password(
 @router.post("/login")
 def login_role(
     payload: RoleLoginRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     """Authenticate a role against database password."""
     role = db.query(Role).filter(

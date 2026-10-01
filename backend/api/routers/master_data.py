@@ -1,5 +1,9 @@
+from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Annotated
+try:
+    from typing import Any, Dict, List, Optional, Union
+except ImportError:
+    from typing_extensions import Annotated, Optional, Union, List, Dict, Any
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
@@ -35,13 +39,13 @@ router = APIRouter(
 # Categories & Statuses Helper Endpoints
 # ==============================================================================
 
-@router.get("/categories", response_model=list[FgCategoryResponse])
-def get_categories(db: Annotated[Session, Depends(get_db)]):
+@router.get("/categories", response_model=List[FgCategoryResponse])
+def get_categories(db: Session = Depends(get_db)):
     return db.query(FgCategory).order_by(FgCategory.name).all()
 
 
 @router.post("/categories", response_model=FgCategoryResponse, status_code=status.HTTP_201_CREATED)
-def create_category(payload: FgCategoryCreate, db: Annotated[Session, Depends(get_db)]):
+def create_category(payload: FgCategoryCreate, db: Session = Depends(get_db)):
     existing = db.query(FgCategory).filter(FgCategory.name == payload.name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Category '{payload.name}' already exists.")
@@ -58,13 +62,13 @@ def create_category(payload: FgCategoryCreate, db: Annotated[Session, Depends(ge
     return category
 
 
-@router.get("/statuses", response_model=list[FgStatusResponse])
-def get_statuses(db: Annotated[Session, Depends(get_db)]):
+@router.get("/statuses", response_model=List[FgStatusResponse])
+def get_statuses(db: Session = Depends(get_db)):
     return db.query(FgStatus).order_by(FgStatus.name).all()
 
 
 @router.post("/statuses", response_model=FgStatusResponse, status_code=status.HTTP_201_CREATED)
-def create_status(payload: FgStatusCreate, db: Annotated[Session, Depends(get_db)]):
+def create_status(payload: FgStatusCreate, db: Session = Depends(get_db)):
     existing = db.query(FgStatus).filter(FgStatus.name == payload.name).first()
     if existing:
         raise HTTPException(status_code=400, detail=f"Status '{payload.name}' already exists.")
@@ -85,7 +89,7 @@ def create_status(payload: FgStatusCreate, db: Annotated[Session, Depends(get_db
 # Helper resolution functions
 # ==============================================================================
 
-def resolve_category(db: Session, category_id: str | None, category_name: str | None) -> str:
+def resolve_category(db: Session, category_id: Optional[str], category_name: Optional[str]) -> str:
     if category_id:
         cat = db.query(FgCategory).filter(FgCategory.id == category_id).first()
         if cat:
@@ -115,7 +119,7 @@ def resolve_category(db: Session, category_id: str | None, category_name: str | 
     return new_cat.id
 
 
-def resolve_status(db: Session, status_id: str | None, status_name: str | None) -> str:
+def resolve_status(db: Session, status_id: Optional[str], status_name: Optional[str]) -> str:
     if status_id:
         st = db.query(FgStatus).filter(FgStatus.id == status_id).first()
         if st:
@@ -148,12 +152,12 @@ def resolve_status(db: Session, status_id: str | None, status_name: str | None) 
 # Master Data Items Endpoints
 # ==============================================================================
 
-@router.get("/", response_model=list[MasterDataItemResponse])
+@router.get("/", response_model=List[MasterDataItemResponse])
 def get_master_data_items(
-    db: Annotated[Session, Depends(get_db)],
-    category_id: str | None = None,
-    status_id: str | None = None,
-    search: str | None = None,
+    db: Session = Depends(get_db),
+    category_id: Optional[str] = None,
+    status_id: Optional[str] = None,
+    search: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
@@ -184,10 +188,10 @@ def get_master_data_items(
 
 @router.get("/catalog", response_model=MasterDataListResponse)
 def get_catalog_wrapped(
-    db: Annotated[Session, Depends(get_db)],
-    category_id: str | None = None,
-    status_id: str | None = None,
-    search: str | None = None,
+    db: Session = Depends(get_db),
+    category_id: Optional[str] = None,
+    status_id: Optional[str] = None,
+    search: Optional[str] = None,
 ):
     items = get_master_data_items(db, category_id=category_id, status_id=status_id, search=search, skip=0, limit=500)
     return MasterDataListResponse(
@@ -203,8 +207,8 @@ def get_catalog_wrapped(
 #  get_devices_data, post_devices_data, update_devices_data)
 # ==============================================================================
 
-@router.get("/get_roles_data", response_model=list[RoleResponse])
-def get_roles_data_endpoint(db: Annotated[Session, Depends(get_db)]):
+@router.get("/get_roles_data", response_model=List[RoleResponse])
+def get_roles_data_endpoint(db: Session = Depends(get_db)):
     from api.routers.roles import get_roles_data
     return get_roles_data(db)
 
@@ -212,16 +216,16 @@ def get_roles_data_endpoint(db: Annotated[Session, Depends(get_db)]):
 @router.put("/update_roles_password")
 def update_roles_password_endpoint(
     payload: RoleUpdatePasswordRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     from api.routers.roles import update_roles_password
     return update_roles_password(payload, db)
 
 
-@router.get("/get_devices_data", response_model=list[DeviceResponse])
+@router.get("/get_devices_data", response_model=List[DeviceResponse])
 def get_devices_data_endpoint(
-    db: Annotated[Session, Depends(get_db)],
-    search: str | None = None,
+    db: Session = Depends(get_db),
+    search: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
@@ -232,7 +236,7 @@ def get_devices_data_endpoint(
 @router.post("/post_devices_data", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)
 def post_devices_data_endpoint(
     payload: DeviceCreateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     from api.routers.devices import post_devices_data
     return post_devices_data(payload, db)
@@ -241,7 +245,7 @@ def post_devices_data_endpoint(
 @router.put("/update_devices_data", response_model=DeviceResponse)
 def update_devices_data_endpoint(
     payload: DeviceUpdateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     from api.routers.devices import update_devices_data
     return update_devices_data(payload, db)
@@ -251,7 +255,7 @@ def update_devices_data_endpoint(
 @router.post("/post_can")
 def post_scan_endpoint(
     payload: dict,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     from api.routers.transactions import post_scan
     from schemas.transactions import PostScanRequest
@@ -265,7 +269,7 @@ post_can_endpoint = post_scan_endpoint
 @router.get("/{identifier}", response_model=MasterDataItemResponse)
 def get_master_data_item_by_identifier(
     identifier: str,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     clean_id = identifier.strip()
     item = (
@@ -296,25 +300,28 @@ def get_master_data_item_by_identifier(
 @router.post("/", response_model=MasterDataItemResponse, status_code=status.HTTP_201_CREATED)
 def create_master_data_item(
     payload: MasterDataItemCreate,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     # Uniqueness checks
+    clean_mat = payload.material_code.strip()
+    clean_part = payload.part_number.strip()
+
     existing_mat = db.query(MasterDataItem).filter(
-        MasterDataItem.material_code == payload.material_code.strip()
+        func.lower(MasterDataItem.material_code) == clean_mat.lower()
     ).first()
     if existing_mat:
         raise HTTPException(
-            status_code=400,
-            detail=f"Item with Material Code '{payload.material_code}' already exists (ID: {existing_mat.id}).",
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Duplicate Validation: Material Code '{clean_mat}' already exists in Master Data (Item ID: {existing_mat.id}). Material Code must be unique across all items.",
         )
 
     existing_part = db.query(MasterDataItem).filter(
-        MasterDataItem.part_number == payload.part_number.strip()
+        func.lower(MasterDataItem.part_number) == clean_part.lower()
     ).first()
     if existing_part:
         raise HTTPException(
-            status_code=400,
-            detail=f"Item with Part Number '{payload.part_number}' already exists (ID: {existing_part.id}).",
+            status_code=status.HTTP_409_CONFLICT,
+            detail=f"Duplicate Validation: Part Number '{clean_part}' already exists in Master Data (Item ID: {existing_part.id}). Part Number must be unique across all items.",
         )
 
     cat_id = resolve_category(db, payload.category_id, payload.category)
@@ -345,8 +352,19 @@ def create_master_data_item(
         updated_by=payload.created_by or "admin",
     )
 
-    db.add(new_item)
-    db.commit()
+    try:
+        db.add(new_item)
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        err_msg = str(e.orig) if hasattr(e, "orig") else str(e)
+        if "material_code" in err_msg.lower():
+            detail = f"Duplicate Validation: Material Code '{clean_mat}' already exists in the database. Material Code must be unique."
+        elif "part_number" in err_msg.lower():
+            detail = f"Duplicate Validation: Part Number '{clean_part}' already exists in the database. Part Number must be unique."
+        else:
+            detail = f"Database Unique Constraint Violation: {err_msg}"
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
     return get_master_data_item_by_identifier(new_item.id, db)
 
@@ -355,29 +373,39 @@ def create_master_data_item(
 def update_master_data_item(
     id: str,
     payload: MasterDataItemUpdate,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     item = db.query(MasterDataItem).filter(MasterDataItem.id == id).first()
     if not item:
         raise HTTPException(status_code=404, detail=f"Master data item '{id}' not found.")
 
-    if payload.material_code is not None and payload.material_code.strip() != item.material_code:
-        conflict = db.query(MasterDataItem).filter(
-            MasterDataItem.material_code == payload.material_code.strip(),
-            MasterDataItem.id != id,
-        ).first()
-        if conflict:
-            raise HTTPException(status_code=400, detail=f"Material Code '{payload.material_code}' is already used.")
-        item.material_code = payload.material_code.strip()
+    if payload.material_code is not None:
+        clean_mat = payload.material_code.strip()
+        if clean_mat.lower() != item.material_code.lower():
+            conflict = db.query(MasterDataItem).filter(
+                func.lower(MasterDataItem.material_code) == clean_mat.lower(),
+                MasterDataItem.id != id,
+            ).first()
+            if conflict:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Duplicate Validation: Material Code '{clean_mat}' is already used by another item (ID: {conflict.id}). Material Code must be unique.",
+                )
+            item.material_code = clean_mat
 
-    if payload.part_number is not None and payload.part_number.strip() != item.part_number:
-        conflict = db.query(MasterDataItem).filter(
-            MasterDataItem.part_number == payload.part_number.strip(),
-            MasterDataItem.id != id,
-        ).first()
-        if conflict:
-            raise HTTPException(status_code=400, detail=f"Part Number '{payload.part_number}' is already used.")
-        item.part_number = payload.part_number.strip()
+    if payload.part_number is not None:
+        clean_part = payload.part_number.strip()
+        if clean_part.lower() != item.part_number.lower():
+            conflict = db.query(MasterDataItem).filter(
+                func.lower(MasterDataItem.part_number) == clean_part.lower(),
+                MasterDataItem.id != id,
+            ).first()
+            if conflict:
+                raise HTTPException(
+                    status_code=status.HTTP_409_CONFLICT,
+                    detail=f"Duplicate Validation: Part Number '{clean_part}' is already used by another item (ID: {conflict.id}). Part Number must be unique.",
+                )
+            item.part_number = clean_part
 
     if payload.category_id or payload.category:
         item.category_id = resolve_category(db, payload.category_id, payload.category)
@@ -413,7 +441,18 @@ def update_master_data_item(
     item.updated_by = payload.updated_by or "admin"
     item.updated_on = datetime.now(timezone.utc)
 
-    db.commit()
+    try:
+        db.commit()
+    except IntegrityError as e:
+        db.rollback()
+        err_msg = str(e.orig) if hasattr(e, "orig") else str(e)
+        if "material_code" in err_msg.lower():
+            detail = f"Duplicate Validation: Material Code '{payload.material_code}' already exists in the database."
+        elif "part_number" in err_msg.lower():
+            detail = f"Duplicate Validation: Part Number '{payload.part_number}' already exists in the database."
+        else:
+            detail = f"Database Unique Constraint Violation: {err_msg}"
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail=detail)
 
     return get_master_data_item_by_identifier(id, db)
 
@@ -421,7 +460,7 @@ def update_master_data_item(
 @router.delete("/{id}")
 def delete_master_data_item(
     id: str,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     clean_id = id.strip()
     item = (
@@ -471,7 +510,7 @@ def delete_master_data_item(
 
 
 @router.post("/seed")
-def seed_master_data(db: Annotated[Session, Depends(get_db)]):
+def seed_master_data(db: Session = Depends(get_db)):
     """
     Seeds essential lookup tables (Roles, FG Categories, FG Statuses)
     without inserting hardcoded mock devices or mock products.

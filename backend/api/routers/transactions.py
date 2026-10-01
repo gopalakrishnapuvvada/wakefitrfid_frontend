@@ -1,9 +1,13 @@
+from __future__ import annotations
 import base64
 import json
 import os
 from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Annotated, Any
+try:
+    from typing import Any, Dict, List, Optional, Union
+except ImportError:
+    from typing_extensions import Annotated, Any, Optional, Union, List, Dict
 
 IST = timezone(timedelta(hours=5, minutes=30))
 
@@ -38,9 +42,9 @@ UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads" / "transa
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
-def save_transaction_images(txn_id: str, images: list[str]) -> list[str]:
+def save_transaction_images(txn_id: str, images: List[str]) -> List[str]:
     """Saves base64 images to uploads/transactions/ directory on disk and returns relative paths."""
-    saved_paths: list[str] = []
+    saved_paths: List[str] = []
     if not images:
         return saved_paths
 
@@ -73,33 +77,33 @@ def save_transaction_images(txn_id: str, images: list[str]) -> list[str]:
     return saved_paths
 
 # In-memory buffer for latest scanned label awaiting user decision (Queue vs Cancel)
-_latest_pending_scan: dict[str, Any] | None = None
+_latest_pending_scan: Dict[str, Any] | None = None
 _scan_counter: int = 0
 
 # Buffer for SICK fixed portal scans
-_latest_pending_fixed_scan: dict[str, Any] | None = None
+_latest_pending_fixed_scan: Dict[str, Any] | None = None
 _fixed_scan_counter: int = 0
 
 
 
-@router.get("/statuses", response_model=list[StatusTransactionDataResponse])
-def get_transaction_statuses(db: Annotated[Session, Depends(get_db)]):
+@router.get("/statuses", response_model=List[StatusTransactionDataResponse])
+def get_transaction_statuses(db: Session = Depends(get_db)):
     return db.query(StatusTransactionData).all()
 
 
-@router.get("/", response_model=list[TransactionResponse])
+@router.get("/", response_model=List[TransactionResponse])
 def get_transactions(
-    db: Annotated[Session, Depends(get_db)],
-    status: str | None = None,
-    material_code: str | None = None,
-    device_id: str | None = None,
-    category: str | None = None,
-    category_id: str | None = None,
-    start_date: str | None = None,
-    end_date: str | None = None,
-    search: str | None = None,
+    db: Session = Depends(get_db),
+    status: Optional[str] = None,
+    material_code: Optional[str] = None,
+    device_id: Optional[str] = None,
+    category: Optional[str] = None,
+    category_id: Optional[str] = None,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+    search: Optional[str] = None,
     skip: int = Query(0, ge=0),
-    limit: int | None = Query(None, ge=-1),
+    limit: Optional[int] = Query(None, ge=-1),
 ):
     query = db.query(TransactionData).options(
         joinedload(TransactionData.master_item),
@@ -207,7 +211,7 @@ def get_transactions(
 @router.post("/marriage", response_model=TransactionResponse, status_code=status.HTTP_201_CREATED)
 def create_marriage_transaction(
     payload: TransactionCreateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     clean_rfid = (payload.factory_rfid_tag_id or "").strip()
     clean_mat = (payload.material_code or "").strip()
@@ -318,7 +322,7 @@ def create_marriage_transaction(
         db.flush()
 
     # Process and save attached photo evidence (1 to 8 images)
-    saved_img_paths: list[str] = []
+    saved_img_paths: List[str] = []
     if payload.images:
         saved_img_paths = save_transaction_images(txn_id, payload.images)
     elif payload.image_paths:
@@ -391,7 +395,7 @@ def create_marriage_transaction(
 @router.get("/{transaction_id}/details", response_model=TransactionResponse)
 def get_transaction_by_id(
     transaction_id: str,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     """
     On-demand detail fetcher for a single transaction.
@@ -421,7 +425,7 @@ def get_transaction_by_id(
 def update_transaction_status(
     transaction_id: str,
     payload: TransactionStatusUpdateRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     txn = db.query(TransactionData).filter(TransactionData.transaction_id == transaction_id).first()
     if not txn:
@@ -450,7 +454,7 @@ def update_transaction_status(
 # POST_CAN / POST_SCAN (Awaiting Queue / Cancel in Product Validation)
 # ==============================================================================
 
-def get_image_for_material(material_code: str | None, category: str | None = None) -> str:
+def get_image_for_material(material_code: Optional[str], category: Optional[str] = None) -> str:
     mat = (material_code or "").upper()
     cat = (str(category) or "").lower()
     if "REC" in mat or "recliner" in cat:
@@ -470,7 +474,7 @@ def get_image_for_material(material_code: str | None, category: str | None = Non
 @router.post("/post_scan", response_model=PostCanResponse, status_code=status.HTTP_200_OK)
 def post_can(
     payload: PostCanRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     """
     POST Operation: Takes Factory Generated RFID Tag Unique ID, Material Code, or Work Order Number - WO.
@@ -520,7 +524,7 @@ def post_can(
         )
 
         cat_str = item.category.name if (item and item.category) else (item.category_id if item else None)
-        item_images: list[str] = []
+        item_images: List[str] = []
         if item and item.fg_image:
             item_images = normalize_fg_image(item.fg_image)
 
@@ -673,7 +677,7 @@ cancel_scan = cancel_can
 @router.post("/post_fixed_rfid", response_model=PostFixedRfidResponse, status_code=status.HTTP_200_OK)
 def post_fixed_rfid(
     payload: PostFixedRfidRequest,
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     """
     Fixed SICK RFU630 Portal Reader Detection:
@@ -747,7 +751,7 @@ def post_fixed_rfid(
         (item.category.name if item and getattr(item, "category", None) else getattr(txn, "category_id", None))
     )
 
-    item_images: list[str] = []
+    item_images: List[str] = []
     if item and item.fg_image:
         item_images = normalize_fg_image(item.fg_image)
 
@@ -822,7 +826,7 @@ def clear_fixed_rfid():
 
 
 @router.post("/clear")
-def clear_all_transactions(db: Annotated[Session, Depends(get_db)]):
+def clear_all_transactions(db: Session = Depends(get_db)):
     """
     Clears all transaction data from SQLite transactions_data table
     and resets all in-memory scan buffers.

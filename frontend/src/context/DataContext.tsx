@@ -22,8 +22,8 @@ import { getCurrentIST } from '../utils/dateUtils';
 interface DataContextType {
   // Master Data
   masterData: MasterDataItem[];
-  addMasterDataItem: (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>) => MasterDataItem;
-  updateMasterDataItem: (id: string, updates: Partial<MasterDataItem>) => void;
+  addMasterDataItem: (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<MasterDataItem>;
+  updateMasterDataItem: (id: string, updates: Partial<MasterDataItem>) => Promise<MasterDataItem>;
   deleteMasterDataItem: (id: string) => Promise<void>;
   bulkImportMasterData: (items: Array<Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>>) => void;
   getMasterDataByCode: (code: string) => MasterDataItem | undefined;
@@ -160,46 +160,20 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     refreshTransactions();
   }, [refreshTransactions]);
 
-  const addMasterDataItem = (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>): MasterDataItem => {
-    const tempId = `md-${Date.now().toString(36)}`;
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const newItem: MasterDataItem = {
-      ...item,
-      id: tempId,
-      createdAt: now,
-      updatedAt: now,
-    };
-    setMasterData(prev => [newItem, ...prev]);
-
-    // Asynchronously commit to backend API
-    MasterDataApi.createItem(item)
-      .then(saved => {
-        setMasterData(prev => prev.map(m => (m.id === tempId ? saved : m)));
-      })
-      .catch(err => {
-        console.warn('Failed to save master data item to backend API:', err);
-      });
-
-    return newItem;
+  const addMasterDataItem = async (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<MasterDataItem> => {
+    // Commit to backend API first to validate database & uniqueness constraints
+    const saved = await MasterDataApi.createItem(item);
+    setMasterData(prev => [saved, ...prev.filter(m => m.id !== saved.id && m.materialCode !== saved.materialCode)]);
+    return saved;
   };
 
-  const updateMasterDataItem = (id: string, updates: Partial<MasterDataItem>) => {
+  const updateMasterDataItem = async (id: string, updates: Partial<MasterDataItem>): Promise<MasterDataItem> => {
+    // Commit to backend API first to validate database & uniqueness constraints
+    const updated = await MasterDataApi.updateItem(id, updates);
     setMasterData(prev =>
-      prev.map(item =>
-        item.id === id
-          ? {
-              ...item,
-              ...updates,
-              updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-            }
-          : item
-      )
+      prev.map(item => (item.id === id ? updated : item))
     );
-
-    // Asynchronously update on backend API
-    MasterDataApi.updateItem(id, updates).catch(err => {
-      console.warn(`Failed to sync master data update for ${id} with backend API:`, err);
-    });
+    return updated;
   };
 
   const deleteMasterDataItem = async (id: string): Promise<void> => {

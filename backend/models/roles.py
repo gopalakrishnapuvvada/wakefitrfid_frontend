@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, String
 from sqlalchemy.orm import Mapped, mapped_column
@@ -16,12 +18,12 @@ class Role(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    updated_on: Mapped[datetime | None] = mapped_column(
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    updated_on: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=True,
     )
-    updated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 

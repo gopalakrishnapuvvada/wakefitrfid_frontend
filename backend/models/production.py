@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timezone
 
 from sqlalchemy import DateTime, String
@@ -19,8 +21,8 @@ class ProductionRecord(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    updated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    updated_on: Mapped[datetime | None] = mapped_column(
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    updated_on: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),

@@ -1,5 +1,9 @@
+from __future__ import annotations
 from datetime import datetime, timezone
-from typing import Annotated
+try:
+    from typing import Any, Dict, List, Optional, Union
+except ImportError:
+    from typing_extensions import Annotated
 
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
@@ -17,17 +21,17 @@ router = APIRouter(
 
 @router.get(
     "/",
-    response_model=list[ProductionRecordResponse],
+    response_model=List[ProductionRecordResponse],
 )
 def get_production_records(
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     return db.query(ProductionRecord).all()
 
 
 @router.post("/seed")
 def seed_production_records(
-    db: Annotated[Session, Depends(get_db)],
+    db: Session = Depends(get_db),
 ):
     records = [
         ProductionRecord(

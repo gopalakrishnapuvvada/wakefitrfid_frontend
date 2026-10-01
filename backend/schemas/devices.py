@@ -1,32 +1,33 @@
+from __future__ import annotations
 from datetime import datetime
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 
 class DeviceCreateRequest(BaseModel):
-    device_id: str | None = Field(None, alias="deviceId")
-    id: str | None = None
-    display_name: str | None = Field(None, alias="displayName")
-    name: str | None = None
-    ip_address: str | None = Field(None, alias="ipAddress")
-    mac_address: str | None = Field(None, alias="macAddress")
-    make: str | None = None
-    port: int | None = None
-    created_by: str | None = Field("admin", alias="createdBy")
+    device_id: Optional[str] = Field(None, alias="deviceId")
+    id: Optional[str] = None
+    display_name: Optional[str] = Field(None, alias="displayName")
+    name: Optional[str] = None
+    ip_address: Optional[str] = Field(None, alias="ipAddress")
+    mac_address: Optional[str] = Field(None, alias="macAddress")
+    make: Optional[str] = None
+    port: Optional[int] = None
+    created_by: Optional[str] = Field("admin", alias="createdBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
 
 class DeviceUpdateRequest(BaseModel):
-    device_id: str | None = Field(None, alias="deviceId")
-    id: str | None = None
-    display_name: str | None = Field(None, alias="displayName")
-    name: str | None = None
-    ip_address: str | None = Field(None, alias="ipAddress")
-    mac_address: str | None = Field(None, alias="macAddress")
-    make: str | None = None
-    port: int | None = None
-    updated_by: str | None = Field("admin", alias="updatedBy")
+    device_id: Optional[str] = Field(None, alias="deviceId")
+    id: Optional[str] = None
+    display_name: Optional[str] = Field(None, alias="displayName")
+    name: Optional[str] = None
+    ip_address: Optional[str] = Field(None, alias="ipAddress")
+    mac_address: Optional[str] = Field(None, alias="macAddress")
+    make: Optional[str] = None
+    port: Optional[int] = None
+    updated_by: Optional[str] = Field("admin", alias="updatedBy")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -34,16 +35,16 @@ class DeviceUpdateRequest(BaseModel):
 class DeviceResponse(BaseModel):
     device_id: str = Field(..., alias="deviceId")
     id: str
-    display_name: str | None = Field(None, alias="displayName")
+    display_name: Optional[str] = Field(None, alias="displayName")
     name: str
-    ip_address: str | None = Field(None, alias="ipAddress")
-    mac_address: str | None = Field(None, alias="macAddress")
-    make: str | None = None
-    port: int | None = None
+    ip_address: Optional[str] = Field(None, alias="ipAddress")
+    mac_address: Optional[str] = Field(None, alias="macAddress")
+    make: Optional[str] = None
+    port: Optional[int] = None
     created_on: datetime = Field(..., alias="createdOn")
-    updated_on: datetime | None = Field(None, alias="updatedOn")
-    created_by: str | None = Field(None, alias="createdBy")
-    updated_by: str | None = Field(None, alias="updatedBy")
+    updated_on: Optional[datetime] = Field(None, alias="updatedOn")
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    updated_by: Optional[str] = Field(None, alias="updatedBy")
 
     model_config = ConfigDict(from_attributes=True, populate_by_name=True)
 

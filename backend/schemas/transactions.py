@@ -1,5 +1,6 @@
+from __future__ import annotations
 from datetime import datetime, timezone, timedelta
-from typing import Any
+from typing import Any, Dict, List, Optional, Union
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 IST = timezone(timedelta(hours=5, minutes=30))
@@ -14,18 +15,18 @@ class StatusTransactionDataResponse(BaseModel):
 import json
 
 class TransactionCreateRequest(BaseModel):
-    transaction_id: str | None = Field(None, alias="transactionId")
-    factory_rfid_tag_id: str | None = Field(None, alias="rfidUniqueId")
-    work_order_no: str | None = Field(None, alias="workOrderNo")
+    transaction_id: Optional[str] = Field(None, alias="transactionId")
+    factory_rfid_tag_id: Optional[str] = Field(None, alias="rfidUniqueId")
+    work_order_no: Optional[str] = Field(None, alias="workOrderNo")
     material_code: str = Field(..., alias="materialCode")
-    part_number: str | None = Field(None, alias="partNumber")
-    category_id: str | None = Field(None, alias="categoryId")
-    scanner_device: str | None = Field(None, alias="deviceId")
-    status_id: str | None = Field("wip", alias="status")
-    operator_role: str | None = Field("admin", alias="operatorRole")
-    created_by: str | None = Field(None, alias="createdBy")
-    images: list[str] | None = Field(None, description="List of 1 to 8 Base64 encoded JPEG/PNG image strings")
-    image_paths: list[str] | None = Field(None, alias="imagePaths")
+    part_number: Optional[str] = Field(None, alias="partNumber")
+    category_id: Optional[str] = Field(None, alias="categoryId")
+    scanner_device: Optional[str] = Field(None, alias="deviceId")
+    status_id: Optional[str] = Field("wip", alias="status")
+    operator_role: Optional[str] = Field("admin", alias="operatorRole")
+    created_by: Optional[str] = Field(None, alias="createdBy")
+    images: Optional[List[str]] = Field(None, description="List of 1 to 8 Base64 encoded JPEG/PNG image strings")
+    image_paths: Optional[List[str]] = Field(None, alias="imagePaths")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -49,7 +50,7 @@ class TransactionCreateRequest(BaseModel):
 
 class TransactionStatusUpdateRequest(BaseModel):
     status: str = Field(..., description="'wip' | 'dispatch' | 'Dispatched' | 'WIP'")
-    updated_by: str | None = Field("admin", alias="updatedBy")
+    updated_by: Optional[str] = Field("admin", alias="updatedBy")
     model_config = ConfigDict(populate_by_name=True)
 
 
@@ -57,24 +58,24 @@ class TransactionResponse(BaseModel):
     sno: int
     transaction_id: str = Field(..., alias="transactionId")
     id: str  # Alias for transactionId
-    rfid_unique_id: str | None = Field(None, alias="rfidUniqueId")
-    work_order_no: str | None = Field(None, alias="workOrderNo")
+    rfid_unique_id: Optional[str] = Field(None, alias="rfidUniqueId")
+    work_order_no: Optional[str] = Field(None, alias="workOrderNo")
     material_code: str = Field(..., alias="materialCode")
-    part_number: str | None = Field(None, alias="partNumber")
-    product_name: str | None = Field(None, alias="productName")
-    category: str | None = None
-    category_id: str | None = Field(None, alias="categoryId")
-    product_image: str | None = Field(None, alias="productImage")
-    fg_image: str | None = Field(None, alias="fgImage")
-    device_id: str | None = Field(None, alias="deviceId")
-    device_name: str | None = Field(None, alias="deviceName")
-    operator_role: str | None = Field(None, alias="operatorRole")
+    part_number: Optional[str] = Field(None, alias="partNumber")
+    product_name: Optional[str] = Field(None, alias="productName")
+    category: Optional[str] = None
+    category_id: Optional[str] = Field(None, alias="categoryId")
+    product_image: Optional[str] = Field(None, alias="productImage")
+    fg_image: Optional[str] = Field(None, alias="fgImage")
+    device_id: Optional[str] = Field(None, alias="deviceId")
+    device_name: Optional[str] = Field(None, alias="deviceName")
+    operator_role: Optional[str] = Field(None, alias="operatorRole")
     status: str
     status_id: str = Field(..., alias="statusId")
-    product_validation_timestamp: datetime | None = Field(None, alias="productValidationTimestamp")
-    label_lookup_timestamp: datetime | None = Field(None, alias="labelLookupTimestamp")
-    image_paths: list[str] = Field(default_factory=list, alias="imagePaths")
-    image_urls: list[str] = Field(default_factory=list, alias="imageUrls")
+    product_validation_timestamp: Optional[datetime] = Field(None, alias="productValidationTimestamp")
+    label_lookup_timestamp: Optional[datetime] = Field(None, alias="labelLookupTimestamp")
+    image_paths: List[str] = Field(default_factory=list, alias="imagePaths")
+    image_urls: List[str] = Field(default_factory=list, alias="imageUrls")
     image_count: int = Field(0, alias="imageCount")
     created_on: datetime = Field(..., alias="createdOn")
     timestamp: str  # Formatted timestamp for frontend table display
@@ -127,8 +128,8 @@ class TransactionResponse(BaseModel):
 
             # Parse captured transaction image paths & URLs
             raw_img_paths = getattr(data, "image_paths", None)
-            img_paths_list: list[str] = []
-            img_urls_list: list[str] = []
+            img_paths_list: List[str] = []
+            img_urls_list: List[str] = []
             if raw_img_paths:
                 if isinstance(raw_img_paths, list):
                     img_paths_list = [str(p) for p in raw_img_paths if p]
@@ -190,10 +191,10 @@ class TransactionResponse(BaseModel):
 
 
 class PostCanRequest(BaseModel):
-    factory_rfid_tag_id: str | None = Field(None, alias="rfidUniqueId", description="Factory Generated RFID Tag Unique ID")
-    material_code: str | None = Field(None, alias="materialCode", description="Material Code")
-    work_order_no: str | None = Field(None, alias="workOrderNo", description="Work Order Number - WO")
-    scanner_device: str | None = Field(None, alias="deviceId", description="Scanner Device ID or Name")
+    factory_rfid_tag_id: Optional[str] = Field(None, alias="rfidUniqueId", description="Factory Generated RFID Tag Unique ID")
+    material_code: Optional[str] = Field(None, alias="materialCode", description="Material Code")
+    work_order_no: Optional[str] = Field(None, alias="workOrderNo", description="Work Order Number - WO")
+    scanner_device: Optional[str] = Field(None, alias="deviceId", description="Scanner Device ID or Name")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -232,19 +233,19 @@ class PostCanResponse(BaseModel):
     success: bool = True
     message: str
     scan_id: str = Field(..., alias="scanId")
-    rfid_unique_id: str | None = Field(None, alias="rfidUniqueId")
-    material_code: str | None = Field(None, alias="materialCode")
-    work_order_no: str | None = Field(None, alias="workOrderNo")
-    raw_rfid: str | None = Field(None, alias="rawRfid")
-    raw_material_code: str | None = Field(None, alias="rawMaterialCode")
-    raw_work_order_no: str | None = Field(None, alias="rawWorkOrderNo")
+    rfid_unique_id: Optional[str] = Field(None, alias="rfidUniqueId")
+    material_code: Optional[str] = Field(None, alias="materialCode")
+    work_order_no: Optional[str] = Field(None, alias="workOrderNo")
+    raw_rfid: Optional[str] = Field(None, alias="rawRfid")
+    raw_material_code: Optional[str] = Field(None, alias="rawMaterialCode")
+    raw_work_order_no: Optional[str] = Field(None, alias="rawWorkOrderNo")
     device_id: str = Field(..., alias="deviceId")
     device_name: str = Field(..., alias="deviceName")
-    matched_fg_item: Any | None = Field(None, alias="matchedFgItem")
+    matched_fg_item: Optional[Any] = Field(None, alias="matchedFgItem")
     reading_success: bool = Field(False, alias="readingSuccess")
     is_complete: bool = Field(False, alias="isComplete")
     already_committed: bool = Field(False, alias="alreadyCommitted")
-    existing_transaction: Any | None = Field(None, alias="existingTransaction")
+    existing_transaction: Optional[Any] = Field(None, alias="existingTransaction")
     scanned_at: str = Field(..., alias="scannedAt")
     status: str = "AWAITING_QUEUE"
 
@@ -258,8 +259,8 @@ PostScanResponse = PostCanResponse
 
 class PostFixedRfidRequest(BaseModel):
     factory_rfid_tag_id: str = Field(..., alias="rfidUniqueId", description="Scanned RFID unique ID")
-    scanner_device: str | None = Field("dev-rf-portal-01", alias="deviceId")
-    antenna: str | None = Field("Port 1 (Overhead)", alias="antenna")
+    scanner_device: Optional[str] = Field("dev-rf-portal-01", alias="deviceId")
+    antenna: Optional[str] = Field("Port 1 (Overhead)", alias="antenna")
 
     model_config = ConfigDict(populate_by_name=True)
 
@@ -282,18 +283,18 @@ class PostFixedRfidResponse(BaseModel):
     transaction_id: str = Field(..., alias="transactionId")
     rfid_unique_id: str = Field(..., alias="rfidUniqueId")
     material_code: str = Field(..., alias="materialCode")
-    part_number: str | None = Field(None, alias="partNumber")
-    work_order_no: str | None = Field(None, alias="workOrderNo")
-    product_name: str | None = Field(None, alias="productName")
-    category: str | None = Field(None, alias="category")
-    product_image: str | None = Field(None, alias="productImage")
-    fg_image: str | None = Field(None, alias="fgImage")
+    part_number: Optional[str] = Field(None, alias="partNumber")
+    work_order_no: Optional[str] = Field(None, alias="workOrderNo")
+    product_name: Optional[str] = Field(None, alias="productName")
+    category: Optional[str] = Field(None, alias="category")
+    product_image: Optional[str] = Field(None, alias="productImage")
+    fg_image: Optional[str] = Field(None, alias="fgImage")
     status: str = "Dispatch"
     status_id: str = Field("dispatch", alias="statusId")
     antenna: str = "Port 1 (Overhead)"
     timestamp: str
     full_timestamp: str = Field(..., alias="fullTimestamp")
-    matched_fg_item: Any | None = Field(None, alias="matchedFgItem")
+    matched_fg_item: Optional[Any] = Field(None, alias="matchedFgItem")
 
     model_config = ConfigDict(populate_by_name=True)
 

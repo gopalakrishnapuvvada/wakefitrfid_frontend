@@ -1,3 +1,5 @@
+from __future__ import annotations
+from typing import Any, Dict, List, Optional, Union
 from datetime import datetime, timezone
 from sqlalchemy import DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -15,14 +17,14 @@ class StatusTransactionData(Base):
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    updated_on: Mapped[datetime | None] = mapped_column(
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    updated_on: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=True,
     )
-    updated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
 
 class TransactionData(Base):
@@ -48,27 +50,27 @@ class TransactionData(Base):
 
     sno: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     transaction_id: Mapped[str] = mapped_column(String(100), unique=True, index=True)
-    factory_rfid_tag_id: Mapped[str | None] = mapped_column(String(100), unique=True, nullable=True, index=True)
-    work_order_no: Mapped[str | None] = mapped_column(String(100), nullable=True, index=True)
+    factory_rfid_tag_id: Mapped[Optional[str]] = mapped_column(String(100), unique=True, nullable=True, index=True)
+    work_order_no: Mapped[Optional[str]] = mapped_column(String(100), nullable=True, index=True)
 
     material_code: Mapped[str] = mapped_column(
         String(100),
         ForeignKey("master_data_items.material_code"),
         index=True,
     )
-    part_number: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    category_id: Mapped[str | None] = mapped_column(
+    part_number: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    category_id: Mapped[Optional[str]] = mapped_column(
         String(50),
         ForeignKey("fg_category.id"),
         nullable=True,
     )
-    scanner_device: Mapped[str | None] = mapped_column(
+    scanner_device: Mapped[Optional[str]] = mapped_column(
         String(100),
         ForeignKey("devices.device_id"),
         nullable=True,
     )
 
-    product_validation_timestamp: Mapped[datetime | None] = mapped_column(
+    product_validation_timestamp: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
@@ -77,24 +79,24 @@ class TransactionData(Base):
         ForeignKey("status_transaction_data.id"),
         default="wip",
     )
-    label_lookup_timestamp: Mapped[datetime | None] = mapped_column(
+    label_lookup_timestamp: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         nullable=True,
     )
-    image_paths: Mapped[str | None] = mapped_column(Text, nullable=True)
+    image_paths: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
 
     created_on: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
     )
-    created_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
-    updated_on: Mapped[datetime | None] = mapped_column(
+    created_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
+    updated_on: Mapped[Optional[datetime]] = mapped_column(
         DateTime(timezone=True),
         default=lambda: datetime.now(timezone.utc),
         onupdate=lambda: datetime.now(timezone.utc),
         nullable=True,
     )
-    updated_by: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    updated_by: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     # Relationships connecting the pillars
     status: Mapped["StatusTransactionData"] = relationship()
