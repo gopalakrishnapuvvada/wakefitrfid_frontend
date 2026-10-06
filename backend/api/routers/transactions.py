@@ -69,7 +69,7 @@ def save_transaction_images(txn_id: str, images: List[str]) -> List[str]:
             with open(saved_file_path, "wb") as f:
                 f.write(raw_bytes)
 
-            rel_path = f"uploads/transactions/{filename}"
+            rel_path = f"/uploads/transactions/{filename}"
             saved_paths.append(rel_path)
         except Exception as e:
             print(f"Warning: Failed to save image {idx} for transaction {txn_id}: {e}")

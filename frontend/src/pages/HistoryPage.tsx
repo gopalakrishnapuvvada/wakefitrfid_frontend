@@ -35,7 +35,7 @@ import isBetween from 'dayjs/plugin/isBetween';
 import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { MarriedTransaction, TransactionFilterParams } from '../types';
-import { getProductImageByMaterial, TransactionsApi } from '../services/api';
+import { getProductImageByMaterial, resolveImageUrl, TransactionsApi } from '../services/api';
 
 dayjs.extend(isBetween);
 
@@ -795,80 +795,89 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
             </Descriptions>
 
             {/* Section 3: Captured Product QA Photos (Lazy Loaded On-Demand) */}
-            <div style={{ marginTop: '8px' }}>
-              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
-                <span style={{ fontSize: '13px', fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <PictureOutlined /> 3. Captured QA Photos
-                </span>
-                <Tag color="green" style={{ fontWeight: 700, borderRadius: '6px' }}>
-                  {detailTxn?.imageUrls && detailTxn.imageUrls.length > 0 
-                    ? `${detailTxn.imageUrls.length} Photos Attached` 
-                    : (detailTxn?.imageCount ? `${detailTxn.imageCount} Photos` : '0 Photos')}
-                </Tag>
-              </div>
+            {(() => {
+              const rawPhotos = (detailTxn?.imageUrls && detailTxn.imageUrls.length > 0 ? detailTxn.imageUrls : null) ||
+                                (detailTxn?.imagePaths && detailTxn.imagePaths.length > 0 ? detailTxn.imagePaths : null) ||
+                                (selectedTxn?.imageUrls && selectedTxn.imageUrls.length > 0 ? selectedTxn.imageUrls : null) ||
+                                (selectedTxn?.imagePaths && selectedTxn.imagePaths.length > 0 ? selectedTxn.imagePaths : null) ||
+                                [];
+              const capturedPhotos = rawPhotos.map((u: string) => resolveImageUrl(u));
 
-              {isDetailLoading ? (
-                <div style={{ textAlign: 'center', padding: '24px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderRadius: '8px' }}>
-                  <Spin tip="Loading inspection photos on-demand..." />
-                </div>
-              ) : (detailTxn?.imageUrls && detailTxn.imageUrls.length > 0) ? (
-                <div
-                  style={{
-                    backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                    padding: '12px',
-                    borderRadius: '8px',
-                    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                  }}
-                >
-                  <Image.PreviewGroup>
+              return (
+                <div style={{ marginTop: '8px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <PictureOutlined /> 3. Captured QA Photos
+                    </span>
+                    <Tag color="green" style={{ fontWeight: 700, borderRadius: '6px' }}>
+                      {capturedPhotos.length > 0 
+                        ? `${capturedPhotos.length} Photos Attached` 
+                        : (detailTxn?.imageCount ? `${detailTxn.imageCount} Photos` : (selectedTxn?.imageCount ? `${selectedTxn.imageCount} Photos` : '0 Photos'))}
+                    </Tag>
+                  </div>
+
+                  {isDetailLoading ? (
+                    <div style={{ textAlign: 'center', padding: '24px', backgroundColor: isDark ? '#0f172a' : '#f8fafc', borderRadius: '8px' }}>
+                      <Spin tip="Loading inspection photos on-demand..." />
+                    </div>
+                  ) : capturedPhotos.length > 0 ? (
                     <div
                       style={{
-                        display: 'grid',
-                        gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
-                        gap: '10px',
+                        backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                        padding: '12px',
+                        borderRadius: '8px',
+                        border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
                       }}
                     >
-                      {detailTxn.imageUrls.map((url, idx) => (
+                      <Image.PreviewGroup>
                         <div
-                          key={idx}
                           style={{
-                            position: 'relative',
-                            borderRadius: '8px',
-                            overflow: 'hidden',
-                            border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
-                            backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                            display: 'grid',
+                            gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                            gap: '10px',
                           }}
                         >
-                          <Image
-                            src={url}
-                            alt={`Photo ${idx + 1}`}
-                            height={95}
-                            width="100%"
-                            style={{ objectFit: 'cover' }}
-                            fallback="/products/mattress_1.jpg"
-                          />
-                          <div
-                            style={{
-                              position: 'absolute',
-                              bottom: 0,
-                              left: 0,
-                              right: 0,
-                              backgroundColor: 'rgba(15, 23, 42, 0.75)',
-                              color: '#ffffff',
-                              fontSize: '10px',
-                              textAlign: 'center',
-                              padding: '2px 0',
-                              fontWeight: 700,
-                            }}
-                          >
-                            Photo #{idx + 1}
-                          </div>
+                          {capturedPhotos.map((url, idx) => (
+                            <div
+                              key={idx}
+                              style={{
+                                position: 'relative',
+                                borderRadius: '8px',
+                                overflow: 'hidden',
+                                border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                                backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                              }}
+                            >
+                              <Image
+                                src={url}
+                                alt={`Photo ${idx + 1}`}
+                                height={95}
+                                width="100%"
+                                style={{ objectFit: 'cover' }}
+                                fallback="/products/mattress_1.jpg"
+                              />
+                              <div
+                                style={{
+                                  position: 'absolute',
+                                  bottom: 0,
+                                  left: 0,
+                                  right: 0,
+                                  backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                  color: '#ffffff',
+                                  fontSize: '10px',
+                                  textAlign: 'center',
+                                  padding: '2px 0',
+                                  fontWeight: 700,
+                                }}
+                              >
+                                Photo #{idx + 1}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      </Image.PreviewGroup>
                     </div>
-                  </Image.PreviewGroup>
-                </div>
-              ) : (
+                  ) : (
                 <div
                   style={{
                     backgroundColor: isDark ? '#0f172a' : '#f8fafc',
@@ -884,7 +893,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
                   No shop-floor inspection photos were attached to this transaction.
                 </div>
               )}
-            </div>
+                </div>
+              );
+            })()}
           </div>
         )}
       </Drawer>

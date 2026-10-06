@@ -208,6 +208,22 @@ export function getProductImageByMaterial(materialCode?: string, category?: stri
 /**
  * Validates that an image string is an HTTP/HTTPS URL or relative asset path, rejecting raw Base64 data blobs.
  */
+/**
+ * Resolves full URL for hosted images (e.g. /uploads/transactions/...)
+ */
+export function resolveImageUrl(url: any): string {
+  if (!url || typeof url !== 'string') return '/products/mattress_1.jpg';
+  const u = url.trim();
+  if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) {
+    return u;
+  }
+  const clean = u.startsWith('/') ? u : `/${u}`;
+  if (clean.startsWith('/uploads/')) {
+    return `${API_BASE}${clean}`;
+  }
+  return clean;
+}
+
 export function isValidImageUrl(url: any): boolean {
   if (typeof url !== 'string') return false;
   const u = url.trim();
