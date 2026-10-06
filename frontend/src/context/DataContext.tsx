@@ -18,6 +18,7 @@ import {
 } from '../mock/initialData';
 import { MasterDataApi, DevicesApi, TransactionsApi, getProductImageByMaterial } from '../services/api';
 import { getCurrentIST } from '../utils/dateUtils';
+import dayjs from 'dayjs';
 
 interface DataContextType {
   // Master Data
@@ -483,6 +484,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const passedValidations = validations.filter(v => v.result === 'PASS').length;
   const passRate = validations.length > 0 ? (passedValidations / validations.length) * 100 : 100;
 
+  const todayStr = dayjs().format('YYYY-MM-DD');
+  const marriedToday = marriedTransactions.filter(t => {
+    if (!t.timestamp) return false;
+    const tDate = t.timestamp.split('T')[0].split(' ')[0];
+    return tDate === todayStr;
+  });
+  const dispatchedToday = marriedToday.filter(t => t.status === 'Dispatched');
+
   const stats = {
     totalMasterItems: masterData.length,
     totalActiveDevices: onlineDevicesCount,
@@ -493,8 +502,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     labelsTodayCount: labels.reduce((acc, l) => acc + l.printedCopies, 0),
     validationPassRate: Number(passRate.toFixed(1)),
     totalValidationsToday: validations.length,
-    totalMarriedToday: marriedTransactions.length,
-    dispatchedTodayCount: marriedTransactions.filter(t => t.status === 'Dispatched').length,
+    totalMarriedToday: marriedToday.length,
+    dispatchedTodayCount: dispatchedToday.length,
   };
 
   return (

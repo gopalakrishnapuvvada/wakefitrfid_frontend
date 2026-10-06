@@ -2,11 +2,7 @@ import React, { useState } from 'react';
 import { 
   Button, 
   Space, 
-  Tag, 
   Tooltip, 
-  Badge, 
-  Popover, 
-  List, 
   Modal 
 } from 'antd';
 import { 
@@ -14,16 +10,11 @@ import {
   MenuFoldOutlined, 
   BulbOutlined, 
   BulbFilled, 
-  BellOutlined, 
   LogoutOutlined, 
-  CheckCircleTwoTone,
-  ExclamationCircleOutlined,
   SafetyCertificateFilled,
-  WifiOutlined
 } from '@ant-design/icons';
 import { useAuth } from '../../context/AuthContext';
 import { useAppTheme } from '../../context/ThemeContext';
-import { useData } from '../../context/DataContext';
 
 interface HeaderBarProps {
   collapsed: boolean;
@@ -42,33 +33,8 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
 }) => {
   const { currentRole, logout } = useAuth();
   const { isDark, toggleTheme } = useAppTheme();
-  const { stats, devices } = useData();
 
   const [isLogoutModalVisible, setIsLogoutModalVisible] = useState(false);
-
-  const notifications = [
-    {
-      id: '1',
-      title: 'CIPHER RS38 Handheld #01 Connected',
-      desc: 'Line 1 UHF reader active and ready for FG label scanning.',
-      time: '2 mins ago',
-      icon: <WifiOutlined style={{ color: '#10B981' }} />,
-    },
-    {
-      id: '2',
-      title: 'Zebra ZT411 Inlay Verification',
-      desc: '100% RFID EPC parity achieved on Batch BATCH-2026-0831-A.',
-      time: '15 mins ago',
-      icon: <CheckCircleTwoTone twoToneColor="#10B981" />,
-    },
-    {
-      id: '3',
-      title: 'Periodic Backup Complete',
-      desc: 'Master SKU catalog synchronised with factory ERP database.',
-      time: '1 hr ago',
-      icon: <ExclamationCircleOutlined style={{ color: '#0284C7' }} />,
-    },
-  ];
 
   const getPageTitle = (key: string) => {
     switch (key) {
@@ -99,33 +65,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
     setIsLogoutModalVisible(false);
     logout();
   };
-
-  const notificationContent = (
-    <div style={{ width: '320px', maxWidth: '90vw' }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '8px', borderBottom: '1px solid #e2e8f0', marginBottom: '8px' }}>
-        <strong>Hardware & System Alerts</strong>
-        <Tag color="blue">{notifications.length} New</Tag>
-      </div>
-      <List
-        size="small"
-        dataSource={notifications}
-        renderItem={item => (
-          <List.Item style={{ padding: '8px 0', borderBottom: '1px solid #f1f5f9' }}>
-            <List.Item.Meta
-              avatar={item.icon}
-              title={<span style={{ fontSize: '12px', fontWeight: 600 }}>{item.title}</span>}
-              description={
-                <div>
-                  <div style={{ fontSize: '11px', color: '#64748b' }}>{item.desc}</div>
-                  <div style={{ fontSize: '10px', color: '#94a3b8', marginTop: '2px' }}>{item.time}</div>
-                </div>
-              }
-            />
-          </List.Item>
-        )}
-      />
-    </div>
-  );
 
   return (
     <div

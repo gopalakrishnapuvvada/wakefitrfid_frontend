@@ -10,19 +10,29 @@ import { useAppTheme } from '../../context/ThemeContext';
 
 const { Option } = Select;
 
-// Distinct harmonious color palette for Material Codes
-const MATERIAL_COLOR_MAP: Record<string, { color: string; label: string }> = {
-  'WAK-MAT-787208': { color: '#E53935', label: 'Orthopaedic King Mattress' },
-  'WAK-SOF-NAP-3ST': { color: '#1E3A5F', label: 'Napper 3-Seater Sofa' },
-  'WAK-REC-MOT-BRN': { color: '#D97706', label: 'Motorized Single Recliner' },
-  'WAK-BED-TEK-QN': { color: '#8B5CF6', label: 'Teak Wood Queen Bed' },
-  'WAK-PIL-MEM-STD': { color: '#0284C7', label: 'Cooling Gel Memory Pillow' },
-  'WAK-MAT-727206': { color: '#10B981', label: 'Orthopaedic Queen Mattress' },
-  'WAK-MAT-756006': { color: '#EC4899', label: 'Dual Comfort Foam Mattress' },
-  'WAK-SOF-CHS-3ST': { color: '#6366F1', label: 'Chesterfield Velvet Sofa' },
-};
+// Distinct harmonious color palette for dynamically assigning colors to any material code
+const COLOR_PALETTE = [
+  '#E53935', '#1E3A5F', '#D97706', '#8B5CF6', 
+  '#0284C7', '#10B981', '#EC4899', '#6366F1',
+  '#F59E0B', '#14B8A6', '#84CC16', '#A855F7',
+  '#06B6D4', '#F43F5E', '#3B82F6', '#64748B'
+];
 
-const DEFAULT_COLOR = '#64748B';
+function getMaterialMeta(materialCode: string, masterDataList: any[]) {
+  const item = masterDataList.find(m => m.materialCode === materialCode);
+  const label = item?.productDescription || item?.model || item?.productName || materialCode;
+  
+  // Deterministic color assignment based on hash of material code
+  let hash = 0;
+  for (let i = 0; i < materialCode.length; i++) {
+    hash = materialCode.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const colorIndex = Math.abs(hash) % COLOR_PALETTE.length;
+  return {
+    color: COLOR_PALETTE[colorIndex],
+    label,
+  };
+}
 
 export const SevenDayStackedTransactionsChart: React.FC = () => {
   const { marriedTransactions, masterData } = useData();
@@ -43,7 +53,7 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
     return Array.from(codes);
   }, [masterData, marriedTransactions]);
 
-  // Generate 7 Days data array ending on today
+  // Generate 7 Days data array ending on today strictly from real transactions
   const sevenDayData = useMemo(() => {
     const days: {
       dateStr: string;        // '2026-08-31'
@@ -54,17 +64,6 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
       totalTransactions: number;
     }[] = [];
 
-    // Pre-calculated realistic baseline distribution per day for rich multi-day trends
-    const baselineDistribution: Record<number, Record<string, number>> = {
-      6: { 'WAK-MAT-787208': 68, 'WAK-SOF-NAP-3ST': 45, 'WAK-REC-MOT-BRN': 32, 'WAK-BED-TEK-QN': 28, 'WAK-PIL-MEM-STD': 25, 'WAK-MAT-727206': 18 },
-      5: { 'WAK-MAT-787208': 74, 'WAK-SOF-NAP-3ST': 52, 'WAK-REC-MOT-BRN': 38, 'WAK-BED-TEK-QN': 31, 'WAK-PIL-MEM-STD': 29, 'WAK-MAT-727206': 22 },
-      4: { 'WAK-MAT-787208': 82, 'WAK-SOF-NAP-3ST': 58, 'WAK-REC-MOT-BRN': 41, 'WAK-BED-TEK-QN': 36, 'WAK-PIL-MEM-STD': 34, 'WAK-MAT-727206': 26 },
-      3: { 'WAK-MAT-787208': 65, 'WAK-SOF-NAP-3ST': 48, 'WAK-REC-MOT-BRN': 30, 'WAK-BED-TEK-QN': 25, 'WAK-PIL-MEM-STD': 20, 'WAK-MAT-727206': 15 },
-      2: { 'WAK-MAT-787208': 89, 'WAK-SOF-NAP-3ST': 62, 'WAK-REC-MOT-BRN': 45, 'WAK-BED-TEK-QN': 40, 'WAK-PIL-MEM-STD': 38, 'WAK-MAT-727206': 30 },
-      1: { 'WAK-MAT-787208': 94, 'WAK-SOF-NAP-3ST': 67, 'WAK-REC-MOT-BRN': 48, 'WAK-BED-TEK-QN': 44, 'WAK-PIL-MEM-STD': 42, 'WAK-MAT-727206': 33 },
-      0: { 'WAK-MAT-787208': 78, 'WAK-SOF-NAP-3ST': 56, 'WAK-REC-MOT-BRN': 42, 'WAK-BED-TEK-QN': 38, 'WAK-PIL-MEM-STD': 32, 'WAK-MAT-727206': 25 },
-    };
-
     for (let i = 6; i >= 0; i--) {
       const d = dayjs().subtract(i, 'day');
       const dateStr = d.format('YYYY-MM-DD');
@@ -72,12 +71,13 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
       const dayName = d.format('ddd');
       const isToday = i === 0;
 
-      // Start with baseline counts
-      const counts: Record<string, number> = { ...(baselineDistribution[i] || {}) };
+      // Start with empty counts - strictly calculated from real database transactions
+      const counts: Record<string, number> = {};
 
       // Integrate real-time live married transactions into the matching day's bucket
       marriedTransactions.forEach(txn => {
-        const txnDate = txn.timestamp.split(' ')[0];
+        if (!txn.timestamp) return;
+        const txnDate = txn.timestamp.split('T')[0].split(' ')[0];
         if (txnDate === dateStr && txn.materialCode) {
           counts[txn.materialCode] = (counts[txn.materialCode] || 0) + 1;
         }
@@ -105,9 +105,12 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
   }, [marriedTransactions, selectedMaterial]);
 
   const maxDayValue = useMemo(() => {
-    const highest = Math.max(...sevenDayData.map(d => d.totalTransactions), 10);
-    // Round up to nice number
-    return Math.ceil(highest / 50) * 50;
+    const highest = Math.max(...sevenDayData.map(d => d.totalTransactions), 0);
+    if (highest === 0) return 10;
+    if (highest <= 10) return 10;
+    if (highest <= 20) return 20;
+    if (highest <= 50) return 50;
+    return Math.ceil(highest / 20) * 20;
   }, [sevenDayData]);
 
   // Chart Y-Axis Scale Marks
@@ -153,14 +156,14 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '16px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
-                Day-wise FG Dispatch Transactions (Last 7 Days)
+                Day-wise FG Transactions (Last 7 Days)
               </span>
               <Tag color="red" style={{ fontWeight: 700, borderRadius: '12px', fontSize: '10px' }}>
-                LIVE TREND
+                LIVE DATABASE
               </Tag>
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              Finished goods dispatch transactions breakdown across material codes.
+              Finished goods verified scan transactions breakdown across material codes.
             </div>
           </div>
         </div>
@@ -184,7 +187,7 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
               <strong>All Material Codes (Stacked View)</strong>
             </Option>
             {availableMaterialCodes.map(code => {
-              const meta = MATERIAL_COLOR_MAP[code] || { color: DEFAULT_COLOR, label: code };
+              const meta = getMaterialMeta(code, masterData);
               return (
                 <Option key={code} value={code}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
@@ -283,19 +286,23 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
                 </div>
                 <div style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {selectedMaterial === 'ALL' ? (
-                    Object.entries(day.materialCounts).map(([mat, count]) => {
-                      const meta = MATERIAL_COLOR_MAP[mat] || { color: DEFAULT_COLOR, label: mat };
-                      const pct = day.totalTransactions > 0 ? Math.round((count / day.totalTransactions) * 100) : 0;
-                      return (
-                        <div key={mat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                            <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: meta.color }} />
-                            <span>{mat}</span>
+                    Object.entries(day.materialCounts).length > 0 ? (
+                      Object.entries(day.materialCounts).map(([mat, count]) => {
+                        const meta = getMaterialMeta(mat, masterData);
+                        const pct = day.totalTransactions > 0 ? Math.round((count / day.totalTransactions) * 100) : 0;
+                        return (
+                          <div key={mat} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                              <span style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: meta.color }} />
+                              <span>{mat}</span>
+                            </div>
+                            <strong>{count} ({pct}%)</strong>
                           </div>
-                          <strong>{count} ({pct}%)</strong>
-                        </div>
-                      );
-                    })
+                        );
+                      })
+                    ) : (
+                      <span style={{ color: '#94a3b8' }}>No scans recorded on this day</span>
+                    )
                   ) : (
                     <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                       <span>{selectedMaterial}:</span>
@@ -305,6 +312,8 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
                 </div>
               </div>
             );
+
+            const selectedMeta = getMaterialMeta(selectedMaterial, masterData);
 
             return (
               <Tooltip key={day.dateStr} title={tooltipContent} color="#0f172a">
@@ -352,7 +361,7 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
                       // Stacked Segments
                       Object.entries(day.materialCounts).map(([mat, count]) => {
                         const segHeightPct = day.totalTransactions > 0 ? (count / day.totalTransactions) * 100 : 0;
-                        const meta = MATERIAL_COLOR_MAP[mat] || { color: DEFAULT_COLOR, label: mat };
+                        const meta = getMaterialMeta(mat, masterData);
                         return (
                           <div
                             key={mat}
@@ -372,7 +381,7 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
                         style={{
                           height: '100%',
                           width: '100%',
-                          backgroundColor: MATERIAL_COLOR_MAP[selectedMaterial]?.color || '#E53935',
+                          backgroundColor: selectedMeta.color || '#E53935',
                         }}
                       />
                     )}
