@@ -6,7 +6,13 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-BACKEND_DIR = Path(__file__).resolve().parent.parent
+import sys
+
+if getattr(sys, 'frozen', False):
+    BACKEND_DIR = Path(sys.executable).resolve().parent
+else:
+    BACKEND_DIR = Path(__file__).resolve().parent.parent
+
 DB_PATH = BACKEND_DIR / "dummy.db"
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 

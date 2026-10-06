@@ -54,7 +54,14 @@ except Exception as e:
     print(f"Startup DB initialization notice: {e}")
 
 # Ensure uploads directory exists
-UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
+import sys
+
+if getattr(sys, 'frozen', False):
+    APP_ROOT = Path(sys.executable).resolve().parent
+else:
+    APP_ROOT = Path(__file__).resolve().parent
+
+UPLOADS_DIR = APP_ROOT / "uploads"
 (UPLOADS_DIR / "transactions").mkdir(parents=True, exist_ok=True)
 
 from contextlib import asynccontextmanager
@@ -195,23 +202,53 @@ async def websocket_events_endpoint(websocket: WebSocket):
 
 
 
-@app.get("/")
-def health_check():
-    return {
-        "status": "online",
-        "system": "Wakefit Finished Goods Auto-ID & Marriage API",
-        "version": "2.5.0",
-        "endpoints": {
-            "masterData": "/api/master-data",
-            "devices": "/api/devices",
-            "roles": "/api/roles",
-            "transactions": "/api/transactions",
-            "post_scan": "/api/transactions/post_scan",
-            "post_fixed_rfid": "/api/transactions/post_fixed_rfid",
+# -------------------------------------------------------------
+# Frontend SPA & Static Assets Mounting
+# -------------------------------------------------------------
+from fastapi.responses import FileResponse
+
+# Check for compiled frontend distribution directory
+FRONTEND_DIST = Path(__file__).resolve().parent.parent / "frontend" / "dist"
+if getattr(sys, 'frozen', False):
+    base_meipass = getattr(sys, '_MEIPASS', APP_ROOT)
+    bundled_dist = Path(base_meipass) / "frontend" / "dist"
+    if bundled_dist.exists():
+        FRONTEND_DIST = bundled_dist
+    elif (APP_ROOT / "frontend" / "dist").exists():
+        FRONTEND_DIST = APP_ROOT / "frontend" / "dist"
+
+if FRONTEND_DIST.exists() and (FRONTEND_DIST / "index.html").exists():
+    if (FRONTEND_DIST / "assets").exists():
+        app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIST / "assets")), name="frontend_assets")
+
+    @app.get("/{full_path:path}")
+    async def serve_frontend_spa(full_path: str):
+        # Allow API and Swagger docs to pass through
+        if full_path.startswith("api/") or full_path.startswith("docs") or full_path.startswith("openapi.json"):
+            return {"error": "Not Found"}
+        target_file = FRONTEND_DIST / full_path
+        if full_path and target_file.is_file():
+            return FileResponse(str(target_file))
+        return FileResponse(str(FRONTEND_DIST / "index.html"))
+else:
+    @app.get("/")
+    def health_check():
+        return {
+            "status": "online",
+            "system": "Wakefit Finished Goods Auto-ID & Marriage API",
+            "version": "2.5.0",
+            "endpoints": {
+                "masterData": "/api/master-data",
+                "devices": "/api/devices",
+                "roles": "/api/roles",
+                "transactions": "/api/transactions",
+                "post_scan": "/api/transactions/post_scan",
+                "post_fixed_rfid": "/api/transactions/post_fixed_rfid",
+            }
         }
-    }
 
 
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)
+
