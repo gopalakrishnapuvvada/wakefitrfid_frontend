@@ -650,7 +650,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
         title={
           <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
             <DatabaseOutlined style={{ color: '#10B981', fontSize: '18px' }} />
-            <span>SQLite Married Transaction — {selectedTxn?.transactionId}</span>
+            <span>Transaction ID — {selectedTxn?.transactionId}</span>
           </div>
         }
         open={!!selectedTxn}
