@@ -57,10 +57,31 @@ except Exception as e:
 UPLOADS_DIR = Path(__file__).resolve().parent / "uploads"
 (UPLOADS_DIR / "transactions").mkdir(parents=True, exist_ok=True)
 
+from contextlib import asynccontextmanager
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Lifecycle manager: Starts SICK Fixed RFID reader on server boot and stops on shutdown."""
+    try:
+        from uaim_device.service import start_rfid_service
+        await start_rfid_service()
+    except Exception as e:
+        print(f"Warning: Could not start SICK RFID scanner service: {e}")
+
+    yield
+
+    try:
+        from uaim_device.service import stop_rfid_service
+        await stop_rfid_service()
+    except Exception as e:
+        print(f"Notice: Error stopping SICK RFID scanner service: {e}")
+
+
 app = FastAPI(
     title="Wakefit FG Auto-ID, Devices, Roles & Master Data API",
     version="2.5.0",
     description="Backend API for Wakefit Finished Goods (FG) Marriage, Device Management, Roles & Catalog.",
+    lifespan=lifespan,
 )
 
 # Mount /uploads for static image retrieval
@@ -154,6 +175,24 @@ def global_clear_transactions(db=Depends(get_db)):
 # 5. Production Records (legacy dummy)
 app.include_router(production_router, prefix="/api/production")
 app.include_router(production_router, prefix="/production-records")
+
+# 6. SICK Fixed RFID Hardware Management Router & Real-Time WebSocket
+from fastapi import WebSocket, WebSocketDisconnect
+from uaim_device.api.routes import router as rfid_adapter_router
+from uaim_device.api.websocket import WS_MANAGER
+
+app.include_router(rfid_adapter_router, prefix="/api/v1")
+
+@app.websocket("/ws/events")
+async def websocket_events_endpoint(websocket: WebSocket):
+    """Real-time normalized RFID event stream for UI dashboard."""
+    await WS_MANAGER.connect(websocket)
+    try:
+        while True:
+            await websocket.receive_text()
+    except (WebSocketDisconnect, Exception):
+        await WS_MANAGER.disconnect(websocket)
+
 
 
 @app.get("/")

@@ -1,0 +1,544 @@
+/* UAIM Industrial Device Adapter - Modern Glassmorphic Dark Design */
+:root {
+  --bg-base: #090d16;
+  --bg-card: rgba(18, 26, 43, 0.75);
+  --bg-card-hover: rgba(24, 35, 58, 0.85);
+  --bg-input: #0f172a;
+  --border-color: rgba(59, 130, 246, 0.18);
+  --border-focus: #3b82f6;
+  --text-main: #f8fafc;
+  --text-muted: #94a3b8;
+  --accent-blue: #3b82f6;
+  --accent-cyan: #06b6d4;
+  --accent-green: #10b981;
+  --accent-amber: #f59e0b;
+  --accent-red: #ef4444;
+  --accent-purple: #8b5cf6;
+  --font-main: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  --radius: 12px;
+  --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.5), 0 8px 10px -6px rgba(0, 0, 0, 0.5);
+  --glow-blue: 0 0 15px rgba(59, 130, 246, 0.35);
+  --glow-green: 0 0 15px rgba(16, 185, 129, 0.35);
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-base);
+  background-image: 
+    radial-gradient(at 0% 0%, rgba(59, 130, 246, 0.12) 0px, transparent 50%),
+    radial-gradient(at 100% 100%, rgba(16, 185, 129, 0.08) 0px, transparent 50%);
+  color: var(--text-main);
+  font-family: var(--font-main);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+
+/* Header */
+header {
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--border-color);
+  padding: 1rem 2rem;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-icon {
+  width: 38px;
+  height: 38px;
+  background: linear-gradient(135deg, var(--accent-blue), var(--accent-cyan));
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  font-size: 1.2rem;
+  color: #fff;
+  box-shadow: var(--glow-blue);
+}
+
+.brand-title h1 {
+  font-size: 1.15rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+.brand-title p {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.header-status {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.status-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  font-size: 0.8rem;
+  font-weight: 600;
+}
+
+.pulse-dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: var(--accent-green);
+  box-shadow: var(--glow-green);
+  animation: pulse 2s infinite;
+}
+
+.pulse-dot.disconnected {
+  background: var(--accent-red);
+  box-shadow: 0 0 10px rgba(239, 68, 68, 0.5);
+  animation: none;
+}
+
+@keyframes pulse {
+  0% { transform: scale(0.95); opacity: 0.7; }
+  50% { transform: scale(1.2); opacity: 1; }
+  100% { transform: scale(0.95); opacity: 0.7; }
+}
+
+/* Main Container */
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: 420px 1fr;
+  gap: 1.5rem;
+  padding: 1.5rem 2rem;
+  flex: 1;
+}
+
+@media (max-width: 1080px) {
+  .dashboard-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Glass Cards */
+.card {
+  background: var(--bg-card);
+  backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius);
+  padding: 1.25rem;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+}
+
+.card-title {
+  font-size: 0.95rem;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+/* Device Item Cards */
+.device-card {
+  background: rgba(15, 23, 42, 0.5);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 10px;
+  padding: 1rem;
+  transition: all 0.2s ease;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.device-card.selected {
+  border-color: var(--accent-blue);
+  box-shadow: var(--glow-blue);
+  background: rgba(30, 41, 59, 0.6);
+}
+
+.device-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.dev-name {
+  font-weight: 700;
+  font-size: 0.95rem;
+}
+
+.dev-sub {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.state-tag {
+  font-size: 0.7rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  text-transform: uppercase;
+}
+
+.state-tag.RUNNING { background: rgba(59, 130, 246, 0.2); color: #60a5fa; border: 1px solid #3b82f6; }
+.state-tag.CONNECTED { background: rgba(16, 185, 129, 0.2); color: #34d399; border: 1px solid #10b981; }
+.state-tag.DISCONNECTED { background: rgba(148, 163, 184, 0.15); color: #94a3b8; border: 1px solid #475569; }
+.state-tag.ERROR { background: rgba(239, 68, 68, 0.2); color: #f87171; border: 1px solid #ef4444; }
+.state-tag.RECONNECTING { background: rgba(245, 158, 11, 0.2); color: #fbbf24; border: 1px solid #f59e0b; }
+
+.device-stats {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 8px;
+  border-radius: 8px;
+  font-size: 0.75rem;
+}
+
+.stat-item {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-label {
+  color: var(--text-muted);
+  font-size: 0.65rem;
+}
+
+.stat-val {
+  font-weight: 700;
+}
+
+/* Button Group */
+.btn-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.btn {
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border-color);
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.btn:hover {
+  background: rgba(59, 130, 246, 0.2);
+  border-color: var(--accent-blue);
+}
+
+.btn-primary {
+  background: var(--accent-blue);
+  color: #fff;
+  border-color: transparent;
+}
+
+.btn-primary:hover {
+  background: #2563eb;
+  box-shadow: var(--glow-blue);
+}
+
+.btn-danger {
+  background: rgba(239, 68, 68, 0.15);
+  color: #f87171;
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.btn-danger:hover {
+  background: var(--accent-red);
+  color: #fff;
+}
+
+.btn-success {
+  background: rgba(16, 185, 129, 0.15);
+  color: #34d399;
+  border-color: rgba(16, 185, 129, 0.3);
+}
+
+.btn-success:hover {
+  background: var(--accent-green);
+  color: #fff;
+}
+
+/* Tabs & Inspection Panes */
+.tab-bar {
+  display: flex;
+  gap: 8px;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 8px;
+}
+
+.tab-btn {
+  background: transparent;
+  border: none;
+  color: var(--text-muted);
+  font-size: 0.85rem;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.tab-btn.active {
+  background: var(--accent-blue);
+  color: #fff;
+  box-shadow: var(--glow-blue);
+}
+
+.tab-content {
+  display: none;
+  flex: 1;
+  overflow: auto;
+}
+
+.tab-content.active {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+/* Live Events & Tag Table */
+.table-container {
+  max-height: 480px;
+  overflow-y: auto;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: rgba(10, 15, 26, 0.6);
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+  text-align: left;
+}
+
+th {
+  background: rgba(15, 23, 42, 0.9);
+  padding: 10px 14px;
+  color: var(--text-muted);
+  font-weight: 600;
+  position: sticky;
+  top: 0;
+  border-bottom: 1px solid var(--border-color);
+}
+
+td {
+  padding: 10px 14px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+tr:hover {
+  background: rgba(59, 130, 246, 0.08);
+}
+
+.epc-cell {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #38bdf8;
+}
+
+.qr-cell {
+  font-family: monospace;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: #a78bfa;
+}
+
+/* Signal RSSI Bar */
+.rssi-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.rssi-bar {
+  width: 50px;
+  height: 6px;
+  background: #1e293b;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.rssi-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--accent-amber), var(--accent-green));
+}
+
+/* Settings Form */
+.form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.form-group label {
+  font-size: 0.75rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.form-input {
+  background: var(--bg-input);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  padding: 8px 12px;
+  border-radius: 6px;
+  font-size: 0.8rem;
+  outline: none;
+  font-family: inherit;
+}
+
+.form-input:focus {
+  border-color: var(--border-focus);
+  box-shadow: 0 0 8px rgba(59, 130, 246, 0.25);
+}
+
+/* Live Feed Log Stream */
+.event-feed-box {
+  background: #060911;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 12px;
+  max-height: 460px;
+  overflow-y: auto;
+  font-family: monospace;
+  font-size: 0.78rem;
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 6px;
+}
+
+.feed-item {
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.03);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  animation: slideIn 0.2s ease-out;
+}
+
+@keyframes slideIn {
+  from { opacity: 0; transform: translateY(-6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.feed-item.RFID { border-left: 3px solid var(--accent-cyan); }
+.feed-item.BARCODE { border-left: 3px solid var(--accent-green); }
+.feed-item.QR_CODE { border-left: 3px solid var(--accent-purple); }
+.feed-item.CYCLE { border-left: 3px solid var(--accent-amber); }
+
+/* QR Code Inspector Card */
+.qr-preview-card {
+  background: rgba(15, 23, 42, 0.7);
+  border: 1px solid var(--border-color);
+  border-radius: 10px;
+  padding: 1.25rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+.qr-box {
+  width: 90px;
+  height: 90px;
+  background: #fff;
+  border-radius: 8px;
+  padding: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #000;
+  font-weight: 800;
+  font-size: 0.8rem;
+  text-align: center;
+}
+
+/* CipherLab RS38 Scanner Wedge Diagnostic Badges */
+.byte-tag {
+  font-family: monospace;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.byte-tag.byte-rfid {
+  background: rgba(6, 182, 212, 0.18);
+  color: #38bdf8;
+  border: 1px solid rgba(6, 182, 212, 0.4);
+}
+
+.byte-tag.byte-qr {
+  background: rgba(139, 92, 246, 0.18);
+  color: #c084fc;
+  border: 1px solid rgba(139, 92, 246, 0.4);
+}
+
+.byte-tag.byte-term {
+  background: rgba(16, 185, 129, 0.18);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.byte-tag.byte-data {
+  background: rgba(255, 255, 255, 0.06);
+  color: #f1f5f9;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.byte-tag.byte-unknown {
+  background: rgba(239, 68, 68, 0.18);
+  color: #f87171;
+  border: 1px solid rgba(239, 68, 68, 0.4);
+}
+

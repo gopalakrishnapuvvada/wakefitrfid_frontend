@@ -1,0 +1,463 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>UAIM Identification Device Adapter - Control & Commissioning Center</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/static/styles.css">
+</head>
+<body>
+
+  <!-- Permanently Focused Hidden Input for Autonomous Hardware Wedge Ingestion -->
+  <input 
+    type="text" 
+    id="cipher-permanent-hidden-input" 
+    autocomplete="off" 
+    autocorrect="off" 
+    autocapitalize="off" 
+    spellcheck="false" 
+    tabindex="0"
+    style="position:fixed; bottom:0; left:0; width:1px; height:1px; opacity:0.01; z-index:9999; border:none; outline:none; background:transparent; padding:0; margin:0;" 
+    aria-hidden="true"
+  />
+
+  <!-- Header Bar -->
+  <header>
+    <div class="brand">
+      <div class="brand-icon">UI</div>
+      <div class="brand-title">
+        <h1>UAIM Device Adapter Platform</h1>
+        <p>SICK Fixed UHF RFID & CipherLab RS38 Handheld Control Center</p>
+      </div>
+    </div>
+    <div class="header-status">
+      <div class="status-badge">
+        <div id="ws-indicator" class="pulse-dot disconnected"></div>
+        <span id="ws-status-text">WS Stream: Disconnected</span>
+      </div>
+      <div class="status-badge">
+        <span style="color:var(--text-muted)">Total Scans:</span>
+        <span id="header-total-scans" style="color:var(--accent-cyan)">0</span>
+      </div>
+      <button class="btn btn-primary" onclick="refreshDevices()">🔄 Refresh</button>
+    </div>
+  </header>
+
+  <!-- Live Keystroke Emulation Wedge Bar (For USB / Bluetooth Handheld Gun Scanners) -->
+  <div style="background: rgba(30, 41, 59, 0.9); border-bottom: 1px solid var(--border-color); padding: 8px 2rem; display: flex; justify-content: space-between; align-items: center; gap: 15px;">
+    <div style="display:flex; align-items:center; gap:10px;">
+      <span style="font-size:1.1rem;">🔫</span>
+      <span style="font-size:0.8rem; font-weight:700; color:var(--accent-cyan);">Hardware Scanner Wedge (HID / Keystroke Emulation):</span>
+      <span style="font-size:0.75rem; color:var(--text-muted);">Click input or pull handheld scanner trigger anywhere</span>
+    </div>
+    <div style="display:flex; gap:8px; flex:1; max-width:550px;">
+      <input type="text" id="wedge-input" class="form-input" style="flex:1; border-color:var(--accent-cyan);" placeholder="Ready for physical scanner input (Press Enter or trigger)..." onkeydown="handleWedgeKeydown(event)">
+      <button class="btn btn-success" onclick="submitWedgeScan()">Inject</button>
+    </div>
+  </div>
+
+  <!-- Main Grid -->
+  <main class="dashboard-grid">
+    
+    <!-- Left Column: Connected Devices & Commissioning Settings -->
+    <section style="display: flex; flex-direction: column; gap: 1rem;">
+      
+      <!-- Device Fleet List Card -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title">📡 Connected Device Fleet</div>
+          <span id="device-count-badge" style="font-size:0.75rem; color:var(--text-muted)">3 Devices</span>
+        </div>
+        <div id="device-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+          <!-- Dynamically populated -->
+        </div>
+      </div>
+
+      <!-- Device Configuration & Commissioning Card -->
+      <!-- Device Configuration Card -->
+      <div class="card" id="settings-card">
+        <div class="card-header">
+          <div class="card-title">⚙️ Device Configuration</div>
+          <span id="active-device-name" style="font-size:0.75rem; color:var(--accent-blue)">Select a device</span>
+        </div>
+
+        <!-- Form for editing device properties -->
+        <form id="device-config-form" onsubmit="saveDeviceConfig(event)" style="display: flex; flex-direction: column; gap: 0.85rem;">
+          <input type="hidden" id="cfg-device-id">
+          
+          <div class="form-group">
+            <label>Device Name / Description</label>
+            <input type="text" id="cfg-name" class="form-input" placeholder="e.g. Pallet Gate SICK RFU630">
+          </div>
+
+          <!-- Network & Station Grid -->
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Host / IP Address</label>
+              <input type="text" id="cfg-host" class="form-input" placeholder="e.g. 192.168.1.246">
+            </div>
+            <div class="form-group">
+              <label>Port</label>
+              <input type="number" id="cfg-port" class="form-input" placeholder="e.g. 2112">
+            </div>
+            <div class="form-group" style="grid-column: span 2;">
+              <label>Station ID / Location</label>
+              <input type="text" id="cfg-station" class="form-input" placeholder="e.g. PALLET-GATE-01 or PACKING-01">
+            </div>
+          </div>
+
+          <div style="display: flex; justify-content: flex-end; gap: 8px; margin-top: 4px;">
+            <button type="submit" class="btn btn-primary">💾 Save Configuration</button>
+          </div>
+        </form>
+
+      </div>
+
+    </section>
+
+    <!-- Right Column: Live RFID & QR Testing Panel -->
+    <section class="card" style="flex: 1;">
+      
+      <!-- Top Navigation Tabs -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('tab-rfid')">🏷️ RFID Tag Matrix</button>
+        <button class="tab-btn" onclick="switchTab('tab-writer')">✍️ RFID Tag Writer / Encoder</button>
+        <button class="tab-btn" onclick="switchTab('tab-rs38-wedge')">📱 CipherLab RS38 Wedge & Debugger</button>
+        <button class="tab-btn" onclick="switchTab('tab-qr')">📱 2D QR & Barcode Inspector</button>
+        <button class="tab-btn" onclick="switchTab('tab-feed')">📜 Live Event Stream</button>
+      </div>
+
+      <!-- TAB 1: RFID Matrix & Reading Gate -->
+      <div id="tab-rfid" class="tab-content active">
+        
+        <!-- Read Cycle Gate Toolbar -->
+        <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(0,0,0,0.25); padding:10px 14px; border-radius:8px;">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span style="font-size:0.8rem; font-weight:700;">Pallet Gate Status:</span>
+            <span id="gate-status-pill" class="state-tag DISCONNECTED">IDLE</span>
+            <span id="active-cycle-label" style="font-size:0.75rem; color:var(--text-muted)"></span>
+          </div>
+          <div class="btn-group">
+            <button class="btn btn-success" onclick="startGateReadCycle()">▶ Start Gate Cycle</button>
+            <button class="btn btn-danger" onclick="stopGateReadCycle()">⏹ Complete Gate Cycle</button>
+            <button class="btn" onclick="clearRfidTable()">🧹 Clear Table</button>
+          </div>
+        </div>
+
+        <!-- RFID Tags Table -->
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>EPC / UII (Electronic Product Code)</th>
+                <th>Antenna</th>
+                <th>Signal (RSSI)</th>
+                <th>Reads</th>
+                <th>Station</th>
+                <th>Read Cycle ID</th>
+                <th>Timestamp (UTC)</th>
+                <th>Action</th>
+              </tr>
+            </thead>
+            <tbody id="rfid-table-body">
+              <tr>
+                <td colspan="8" style="text-align:center; color:var(--text-muted); padding:2rem;">
+                  Waiting for real-time RFID tag observations...
+                </td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+
+      </div>
+
+      <!-- TAB: RFID Tag Writer / Encoder -->
+      <div id="tab-writer" class="tab-content">
+        <div style="display:flex; flex-direction:column; gap:1.2rem;">
+          
+          <div style="background:rgba(59,130,246,0.08); border:1px solid rgba(59,130,246,0.25); border-radius:8px; padding:12px 16px; display:flex; justify-content:space-between; align-items:center;">
+            <div>
+              <div style="font-size:0.95rem; font-weight:700; color:#60a5fa; display:flex; align-items:center; gap:8px;">
+                <span>⚡ SICK RFU630 Transponder Memory Encoder</span>
+              </div>
+              <p style="font-size:0.75rem; color:var(--text-muted); margin:4px 0 0 0;">
+                Writes EPC/UII or user memory directly to UHF RFID tags via CoLa-A (<code>sMN TAwriteTagData</code>).
+              </p>
+            </div>
+            <span class="badge" style="background:rgba(59,130,246,0.2); color:#93c5fd; border:1px solid #3b82f6;">EPC Gen2 Bank 1</span>
+          </div>
+
+          <!-- Encoding Form -->
+          <form id="tag-writer-form" onsubmit="return false;" style="display:flex; flex-direction:column; gap:1rem;">
+            
+            <!-- Target Reader Selection -->
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Target RFID Reader</label>
+                <select id="writer-device-id" class="form-input">
+                  <option value="RFID-001">Pallet Gate SICK RFU630 (RFID-001)</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Antenna Channel</label>
+                <select id="writer-antenna-id" class="form-input">
+                  <option value="1">Antenna 1 (Integrated / Primary)</option>
+                  <option value="2">Antenna 2 (External Left)</option>
+                  <option value="3">Antenna 3 (External Right)</option>
+                  <option value="4">Antenna 4 (External Top)</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- New EPC Hex String Input -->
+            <div class="form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                <label style="font-weight:700; color:var(--accent-cyan);">New EPC / UII Hex Value to Write *</label>
+                <div style="display:flex; gap:8px; align-items:center;">
+                  <span id="writer-epc-len-badge" style="font-size:0.75rem; color:var(--text-muted); font-family:monospace;">24 chars (6 words / 96 bits)</span>
+                  <button type="button" class="btn" style="font-size:0.7rem; padding:2px 8px;" onclick="generateRandomEpc()">🎲 Generate Random</button>
+                  <button type="button" class="btn" style="font-size:0.7rem; padding:2px 8px;" onclick="setSampleEpc()">📋 Set Example</button>
+                </div>
+              </div>
+              <input type="text" id="writer-epc-input" class="form-input" style="font-family:monospace; font-size:0.95rem; font-weight:700; color:#38bdf8; letter-spacing:1px;" value="" placeholder="Enter 24-char hex EPC (e.g. E280116060000204968C090F)" oninput="validateWriterEpcInput()" required>
+            </div>
+
+            <!-- Addressing Mode (Non-addressed vs Addressed) -->
+            <div style="background:rgba(0,0,0,0.25); border-radius:8px; padding:12px; border:1px solid rgba(255,255,255,0.05); display:flex; flex-direction:column; gap:8px;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:0.8rem; font-weight:700; color:var(--text-muted);">Transponder Addressing Mode:</label>
+                <div style="display:flex; gap:16px;">
+                  <label style="font-size:0.8rem; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="writer_mode" value="non_addressed" id="writer-mode-nonaddressed" checked onchange="toggleWriterAddressingMode()">
+                    <span><strong>Non-Addressed</strong> (Single tag in RF field)</span>
+                  </label>
+                  <label style="font-size:0.8rem; display:flex; align-items:center; gap:6px; cursor:pointer;">
+                    <input type="radio" name="writer_mode" value="addressed" id="writer-mode-addressed" onchange="toggleWriterAddressingMode()">
+                    <span><strong>Addressed</strong> (Specific Current EPC)</span>
+                  </label>
+                </div>
+              </div>
+              
+              <!-- Target Tag EPC Input (Visible in Addressed Mode) -->
+              <div id="writer-target-epc-container" style="display:none; margin-top:4px;">
+                <label style="font-size:0.75rem; color:var(--accent-amber);">Target Current Tag EPC (Tag must currently match this to be overwritten):</label>
+                <input type="text" id="writer-target-epc-input" class="form-input" style="font-family:monospace; font-size:0.85rem;" placeholder="e.g. E280116060000204968C090F">
+              </div>
+            </div>
+
+            <!-- Advanced Memory Bank Settings Collapsible / Grid -->
+            <div class="form-grid">
+              <div class="form-group">
+                <label>Memory Bank</label>
+                <select id="writer-bank" class="form-input">
+                  <option value="1">Bank 1 - EPC / UII Memory (Standard)</option>
+                  <option value="3">Bank 3 - User Memory</option>
+                  <option value="0">Bank 0 - Reserved / Passwords</option>
+                </select>
+              </div>
+              <div class="form-group">
+                <label>Word Offset (16-bit words)</label>
+                <input type="number" id="writer-offset" class="form-input" value="2" min="0" title="Word 2 starts EPC data after CRC and PC words">
+              </div>
+              <div class="form-group">
+                <label>Hardware Retries</label>
+                <input type="number" id="writer-retries" class="form-input" value="32" min="1" max="100">
+              </div>
+            </div>
+
+            <div style="display:flex; justify-content:flex-end; align-items:center; gap:12px; margin-top:6px;">
+              <span id="writer-status-spinner" style="display:none; font-size:0.8rem; color:var(--accent-cyan);">Writing to RFID tag...</span>
+              <button type="button" id="writer-submit-btn" class="btn btn-success" style="font-size:0.9rem; padding:8px 20px;" onclick="executeWriteTag(event)">
+                ⚡ Write EPC to Tag
+              </button>
+            </div>
+
+          </form>
+
+          <!-- Result & Output Card -->
+          <div id="writer-result-box" style="display:none; background:#060911; border-radius:8px; padding:12px 16px; border:1px solid rgba(255,255,255,0.08); display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; justify-content:space-between; align-items:center;">
+              <span style="font-size:0.8rem; font-weight:700; color:var(--text-muted)">Writer Execution Result</span>
+              <span id="writer-result-badge" class="state-tag CONNECTED">SUCCESS</span>
+            </div>
+            <div id="writer-result-message" style="font-size:0.85rem; font-weight:600; color:#a3e635;"></div>
+            <div style="font-family:monospace; font-size:0.75rem; color:var(--text-muted); display:flex; flex-direction:column; gap:4px; background:rgba(255,255,255,0.02); padding:8px; border-radius:4px;">
+              <div><strong>Command Sent:</strong> <span id="writer-result-cmd" style="color:#67e8f9;"></span></div>
+              <div><strong>Raw Response:</strong> <span id="writer-result-raw" style="color:#fde047;"></span></div>
+              <div><strong>Latency:</strong> <span id="writer-result-latency" style="color:#c084fc;"></span></div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB: CipherLab RS38 Keyboard Wedge & Debugger -->
+      <div id="tab-rs38-wedge" class="tab-content">
+        <div style="display:flex; flex-direction:column; gap:1.2rem;">
+          
+          <!-- Live Trigger Mode Detection Banner -->
+          <div id="rs38-trigger-banner" style="background:rgba(15, 23, 42, 0.85); border:2px solid rgba(6, 182, 212, 0.4); border-radius:12px; padding:16px 20px; display:flex; justify-content:space-between; align-items:center; box-shadow:0 4px 20px rgba(0,0,0,0.3); transition:all 0.3s ease;">
+            <div style="display:flex; flex-direction:column; gap:4px;">
+              <div style="display:flex; align-items:center; gap:10px;">
+                <span id="rs38-mode-icon" style="font-size:1.4rem;">⚪</span>
+                <span id="rs38-mode-title" style="font-size:1.15rem; font-weight:800; color:#f1f5f9; letter-spacing:0.5px;">
+                  READY - PULL RS38 TRIGGER (RFID / QR)
+                </span>
+              </div>
+              <p id="rs38-mode-subtitle" style="font-size:0.8rem; color:var(--text-muted); margin:0;">
+                Device: <strong>CipherLab RS38 (192.168.88.6)</strong> | Ingestion: <code>RFID = ETX (0x03)</code>, <code>MC = STX (0x02) + 100...</code>, <code>WO = STX (0x02) + 200/400...</code>
+              </p>
+            </div>
+            <div style="display:flex; align-items:center; gap:10px;">
+              <span id="rs38-focus-status" class="badge" style="background:rgba(16, 185, 129, 0.15); color:#34d399; border:1px solid rgba(52, 211, 153, 0.3); font-size:0.75rem; padding:4px 10px; cursor:pointer;" title="Click to reclaim permanent scanner focus" onclick="resetPermanentHiddenFocus()">
+                🔒 Permanent Scanner Focus: ACTIVE
+              </span>
+              <span id="rs38-mode-badge" class="state-tag DISCONNECTED" style="font-size:0.85rem; padding:6px 14px; font-weight:700;">IDLE</span>
+            </div>
+          </div>
+
+          <!-- Unauthorized / Invalid Scan Warning Alert Banner -->
+          <div id="cipher-unauthorized-alert" style="display:none; background:rgba(239, 68, 68, 0.2); border:2px solid #ef4444; border-radius:10px; padding:14px 18px; color:#fca5a5; box-shadow:0 0 25px rgba(239, 68, 68, 0.35); align-items:center; justify-content:space-between; animation:pulse 1s ease-in-out;">
+            <div style="display:flex; align-items:center; gap:12px;">
+              <span style="font-size:1.6rem;">⚠️</span>
+              <div>
+                <div id="cipher-alert-title" style="color:#ef4444; font-size:0.95rem; font-weight:800; letter-spacing:0.5px;">WARNING: NOT AN AUTHORIZED DATA FORMAT</div>
+                <div id="cipher-alert-desc" style="color:#fecaca; font-size:0.82rem; font-weight:500; margin-top:2px;">Only ETX (RFID EPC), STX+100 (MC), or STX+200/400 (WO) are authorized.</div>
+              </div>
+            </div>
+            <button type="button" class="btn" style="border-color:#ef4444; color:#ef4444; font-size:0.75rem; padding:4px 10px;" onclick="dismissCipherAlert()">✖ Dismiss</button>
+          </div>
+
+          <!-- 3 Dedicated Visible Display Fields (RFID, MC, WO) -->
+          <div style="display:flex; flex-direction:column; gap:14px;">
+
+            <!-- FIELD 1: RFID -->
+            <div id="card-rfid" style="background:rgba(15, 23, 42, 0.6); border:1px solid rgba(52, 211, 153, 0.3); border-radius:10px; padding:14px 18px; display:flex; flex-direction:column; gap:8px; transition:all 0.25s ease;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:0.95rem; font-weight:800; color:#34d399; display:flex; align-items:center; gap:8px;">
+                  <span>🏷️ RFID (Electronic Product Code - 24 Hex Chars)</span>
+                  <span style="font-size:0.7rem; background:rgba(52, 211, 153, 0.15); color:#34d399; padding:2px 8px; border-radius:4px; font-weight:700; border:1px solid rgba(52, 211, 153, 0.3);">24 CHARS</span>
+                </label>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn" style="font-size:0.75rem; padding:3px 10px; border-color:#34d399; color:#34d399;" onclick="copyCipherField('rfid')">📋 Copy</button>
+                  <button type="button" class="btn" style="font-size:0.75rem; padding:3px 8px;" onclick="clearCipherField('rfid')">🧹 Clear</button>
+                </div>
+              </div>
+              <input type="text" id="cipher-rfid-input" class="form-input" style="font-family:monospace; font-size:1.15rem; font-weight:700; color:#34d399; letter-spacing:1px; background:#060911; border-color:rgba(52, 211, 153, 0.4);" placeholder="Pull RFID Trigger on CipherLab RS38 (24 Hex)..." readonly />
+              <div id="meta-rfid" style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
+                <span>Status: Waiting for RFID scan (24 chars)</span>
+                <span id="count-rfid" style="font-weight:600;">0 scans</span>
+              </div>
+            </div>
+
+            <!-- FIELD 2: MC (Material Code QR) -->
+            <div id="card-mc" style="background:rgba(15, 23, 42, 0.6); border:1px solid rgba(56, 189, 248, 0.3); border-radius:10px; padding:14px 18px; display:flex; flex-direction:column; gap:8px; transition:all 0.25s ease;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:0.95rem; font-weight:800; color:#38bdf8; display:flex; align-items:center; gap:8px;">
+                  <span>📦 MC (Material Code - 10 Chars - 100...)</span>
+                  <span style="font-size:0.7rem; background:rgba(56, 189, 248, 0.15); color:#38bdf8; padding:2px 8px; border-radius:4px; font-weight:700; border:1px solid rgba(56, 189, 248, 0.3);">10 CHARS</span>
+                </label>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn" style="font-size:0.75rem; padding:3px 10px; border-color:#38bdf8; color:#38bdf8;" onclick="copyCipherField('mc')">📋 Copy</button>
+                  <button type="button" class="btn" style="font-size:0.75rem; padding:3px 8px;" onclick="clearCipherField('mc')">🧹 Clear</button>
+                </div>
+              </div>
+              <input type="text" id="cipher-mc-input" class="form-input" style="font-family:monospace; font-size:1.15rem; font-weight:700; color:#38bdf8; letter-spacing:0.5px; background:#060911; border-color:rgba(56, 189, 248, 0.4);" placeholder="Pull Barcode Trigger on Material QR (10 Chars: 100...)..." readonly />
+              <div id="meta-mc" style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
+                <span>Status: Waiting for MC QR scan (10 chars)</span>
+                <span id="count-mc" style="font-weight:600;">0 scans</span>
+              </div>
+            </div>
+
+            <!-- FIELD 3: WO (Work Order QR) -->
+            <div id="card-wo" style="background:rgba(15, 23, 42, 0.6); border:1px solid rgba(167, 139, 250, 0.3); border-radius:10px; padding:14px 18px; display:flex; flex-direction:column; gap:8px; transition:all 0.25s ease;">
+              <div style="display:flex; justify-content:space-between; align-items:center;">
+                <label style="font-size:0.95rem; font-weight:800; color:#a78bfa; display:flex; align-items:center; gap:8px;">
+                  <span>📋 WO (Work Order - 10 Chars - 200... / 400...)</span>
+                  <span style="font-size:0.7rem; background:rgba(167, 139, 250, 0.15); color:#a78bfa; padding:2px 8px; border-radius:4px; font-weight:700; border:1px solid rgba(167, 139, 250, 0.3);">10 CHARS</span>
+                </label>
+                <div style="display:flex; gap:6px;">
+                  <button type="button" class="btn" style="font-size:0.75rem; padding:3px 10px; border-color:#a78bfa; color:#a78bfa;" onclick="copyCipherField('wo')">📋 Copy</button>
+                  <button type="button" class="btn" style="font-size:0.75rem; padding:3px 8px;" onclick="clearCipherField('wo')">🧹 Clear</button>
+                </div>
+              </div>
+              <input type="text" id="cipher-wo-input" class="form-input" style="font-family:monospace; font-size:1.15rem; font-weight:700; color:#a78bfa; letter-spacing:0.5px; background:#060911; border-color:rgba(167, 139, 250, 0.4);" placeholder="Pull Barcode Trigger on Work Order QR (10 Chars: 200.../400...)..." readonly />
+              <div id="meta-wo" style="display:flex; justify-content:space-between; font-size:0.75rem; color:var(--text-muted);">
+                <span>Status: Waiting for WO QR scan (10 chars)</span>
+                <span id="count-wo" style="font-weight:600;">0 scans</span>
+              </div>
+            </div>
+
+          </div>
+
+          <!-- Controls & Quick Test Toolbar -->
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; background:rgba(255,255,255,0.02); padding:10px 14px; border-radius:8px; border:1px solid rgba(255,255,255,0.05);">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-size:0.75rem; font-weight:700; color:var(--text-muted);">⚡ SIMULATE TRIGGER:</span>
+              <button type="button" class="btn" style="font-size:0.75rem; border-color:#10b981; color:#34d399;" onclick="injectRS38TestScan('etx_rfid_valid')">
+                🏷️ Test RFID (24 Chars)
+              </button>
+              <button type="button" class="btn" style="font-size:0.75rem; border-color:#06b6d4; color:#38bdf8;" onclick="injectRS38TestScan('stx_qr_material_100')">
+                📦 Test MC (10 Chars)
+              </button>
+              <button type="button" class="btn" style="font-size:0.75rem; border-color:#8b5cf6; color:#a78bfa;" onclick="injectRS38TestScan('stx_qr_workorder_200')">
+                📋 Test WO (10 Chars)
+              </button>
+            </div>
+            <div>
+              <button type="button" class="btn" style="font-size:0.75rem; border-color:#ef4444; color:#f87171;" onclick="clearAllCipherFields()">
+                🧹 Clear All 3 Fields
+              </button>
+            </div>
+          </div>
+
+          <!-- Diagnostic Byte Inspector Strip -->
+          <div style="background:#060911; border-radius:8px; padding:10px 14px; border:1px solid rgba(255,255,255,0.08); display:flex; justify-content:space-between; align-items:center;">
+            <span style="font-size:0.75rem; font-weight:700; color:var(--accent-amber);">🔬 RAW BYTE INSPECTOR:</span>
+            <div id="rs38-byte-inspector" style="font-family:monospace; font-size:0.8rem; color:var(--text-muted);">
+              Waiting for incoming hardware scan keystrokes...
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- TAB 2: QR & Barcode Inspector -->
+      <div id="tab-qr" class="tab-content">
+        
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.85rem; color:var(--text-muted)">Latest Decoded 1D Barcode & 2D Matrix Codes</span>
+          <button class="btn" onclick="clearBarcodeCards()">🧹 Clear Barcodes</button>
+        </div>
+
+        <div id="barcode-cards-container" style="display:flex; flex-direction:column; gap:10px; max-height:450px; overflow-y:auto;">
+          <!-- Populated dynamically with scanned barcodes/QR -->
+          <div style="text-align:center; color:var(--text-muted); padding:3rem;">
+            No Barcode or QR code scanned yet. Pull the scanner trigger or use the wedge bar above.
+          </div>
+        </div>
+
+      </div>
+
+      <!-- TAB 3: Live Event Stream -->
+      <div id="tab-feed" class="tab-content">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <span style="font-size:0.85rem; color:var(--text-muted)">Real-time WebSocket Normalized Identification Stream</span>
+          <button class="btn" onclick="clearFeed()">Clear Feed</button>
+        </div>
+        <div id="event-feed-box" class="event-feed-box">
+          <!-- Feed items will be prepended here -->
+        </div>
+      </div>
+
+    </section>
+
+  </main>
+
+  <script src="/static/scanner_wedge.js"></script>
+  <script src="/static/app.js"></script>
+</body>
+</html>
