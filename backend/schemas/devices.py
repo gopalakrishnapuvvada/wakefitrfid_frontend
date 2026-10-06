@@ -68,3 +68,34 @@ class DeviceResponse(BaseModel):
             }
         return data
 
+
+class DeviceRegisterAuthorizeRequest(BaseModel):
+    mac_address: Optional[str] = Field(None, alias="macAddress")
+    display_name: Optional[str] = Field(None, alias="displayName")
+    name: Optional[str] = None
+    device_id: Optional[str] = Field(None, alias="deviceId")
+    id: Optional[str] = None
+    status: Optional[str] = "online"
+    ip_address: Optional[str] = Field(None, alias="ipAddress")
+    make: Optional[str] = "CipherLab"
+    port: Optional[int] = None
+    updated_by: Optional[str] = Field("device-auth", alias="updatedBy")
+    created_by: Optional[str] = Field("device-auth", alias="createdBy")
+
+    model_config = ConfigDict(populate_by_name=True)
+
+
+class DeviceAuthorizeResponse(BaseModel):
+    authorized: bool
+    status: str
+    displayName: Optional[str] = Field(None, alias="displayName")
+    name: Optional[str] = None
+    deviceId: Optional[str] = Field(None, alias="deviceId")
+    device_id: Optional[str] = Field(None, alias="device_id")
+    macAddress: Optional[str] = Field(None, alias="macAddress")
+    mac_address: Optional[str] = Field(None, alias="mac_address")
+    make: Optional[str] = None
+    message: str
+
+    model_config = ConfigDict(populate_by_name=True)
+

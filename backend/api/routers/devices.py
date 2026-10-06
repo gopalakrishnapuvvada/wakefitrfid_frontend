@@ -11,7 +11,13 @@ from sqlalchemy import or_
 from sqlalchemy.orm import Session
 
 from models.devices import Device
-from schemas.devices import DeviceCreateRequest, DeviceResponse, DeviceUpdateRequest
+from schemas.devices import (
+    DeviceAuthorizeResponse,
+    DeviceCreateRequest,
+    DeviceRegisterAuthorizeRequest,
+    DeviceResponse,
+    DeviceUpdateRequest,
+)
 from utils.dependencies import get_db
 
 router = APIRouter(tags=["Auto-ID Hardware Devices"])
@@ -44,6 +50,150 @@ def get_devices_data(
         )
 
     return query.order_by(Device.created_on.desc()).offset(skip).limit(limit).all()
+
+
+@router.get('/authorize', response_model=DeviceAuthorizeResponse)
+@router.get('/check_authorization', response_model=DeviceAuthorizeResponse)
+def authorize_device(
+    mac_address: Optional[str] = Query(None, alias="mac_address"),
+    mac: Optional[str] = Query(None),
+    device_id: Optional[str] = Query(None, alias="device_id"),
+    db: Session = Depends(get_db),
+):
+    target_mac = (mac_address or mac or "").strip()
+    device = None
+
+    if target_mac:
+        # Case-insensitive direct match
+        device = db.query(Device).filter(Device.mac_address.ilike(target_mac)).first()
+
+        # If not found directly, compare stripped hex characters (ignore ':' and '-')
+        if not device:
+            norm_mac = target_mac.replace(":", "").replace("-", "").upper()
+            for d in db.query(Device).filter(Device.mac_address.isnot(None)).all():
+                if d.mac_address and d.mac_address.replace(":", "").replace("-", "").upper() == norm_mac:
+                    device = d
+                    break
+
+    # Fallback to device_id if provided and not yet found
+    if not device and device_id:
+        clean_dev_id = device_id.strip()
+        device = db.query(Device).filter(Device.device_id == clean_dev_id).first()
+
+    if device:
+        return DeviceAuthorizeResponse(
+            authorized=True,
+            status="authorized",
+            displayName=device.name,
+            name=device.name,
+            deviceId=device.device_id,
+            device_id=device.device_id,
+            macAddress=device.mac_address,
+            mac_address=device.mac_address,
+            make=device.make,
+            message=f"Device '{device.name}' is authorized.",
+        )
+
+    return DeviceAuthorizeResponse(
+        authorized=False,
+        status="unauthorized",
+        displayName=None,
+        name=None,
+        deviceId=None,
+        device_id=None,
+        macAddress=target_mac or None,
+        mac_address=target_mac or None,
+        make=None,
+        message=f"Device with MAC '{target_mac or 'Unknown'}' is not registered or authorized.",
+    )
+
+
+@router.post('/register_and_authorize', response_model=DeviceAuthorizeResponse)
+@router.post('/authorize', response_model=DeviceAuthorizeResponse)
+def register_and_authorize_device(
+    payload: DeviceRegisterAuthorizeRequest,
+    db: Session = Depends(get_db),
+):
+    target_mac = (payload.mac_address or '').strip()
+    if not target_mac:
+        raise HTTPException(status_code=400, detail="Missing required 'mac_address' in payload.")
+
+    norm_mac = target_mac.replace(":", "").replace("-", "").upper()
+
+    # Check if a device with this MAC already exists
+    device = db.query(Device).filter(Device.mac_address.ilike(target_mac)).first()
+    if not device:
+        for d in db.query(Device).filter(Device.mac_address.isnot(None)).all():
+            if d.mac_address and d.mac_address.replace(":", "").replace("-", "").upper() == norm_mac:
+                device = d
+                break
+
+    now = datetime.now(timezone.utc)
+
+    if device:
+        # Update existing device info
+        if payload.name or payload.display_name:
+            device.name = _normalize_name(payload.name or payload.display_name)
+        if payload.ip_address:
+            device.ip_address = payload.ip_address
+        if payload.make:
+            device.make = payload.make
+        if payload.port is not None:
+            device.port = payload.port
+        device.updated_on = now
+        device.updated_by = payload.updated_by or 'device-auth'
+        db.commit()
+        db.refresh(device)
+        return DeviceAuthorizeResponse(
+            authorized=True,
+            status="authorized",
+            displayName=device.name,
+            name=device.name,
+            deviceId=device.device_id,
+            device_id=device.device_id,
+            macAddress=device.mac_address,
+            mac_address=device.mac_address,
+            make=device.make,
+            message=f"Device '{device.name}' is registered and authorized.",
+        )
+
+    # Register new device
+    suffix = norm_mac[-4:].lower() if len(norm_mac) >= 4 else "01"
+    dev_id = payload.device_id or payload.id or f"dev-cpr-{suffix}"
+    # Ensure dev_id uniqueness
+    if db.query(Device).filter(Device.device_id == dev_id).first():
+        dev_id = f"{dev_id}-{uuid4().hex[:4]}"
+
+    dev_name = _normalize_name(payload.name or payload.display_name or f"CipherLab RS38 ({suffix})")
+
+    new_device = Device(
+        device_id=dev_id,
+        name=dev_name,
+        ip_address=payload.ip_address,
+        mac_address=target_mac,
+        make=payload.make or "CipherLab",
+        port=payload.port or 0,
+        created_on=now,
+        updated_on=now,
+        created_by=payload.created_by or "device-auth",
+        updated_by=payload.updated_by or "device-auth",
+    )
+    db.add(new_device)
+    db.commit()
+    db.refresh(new_device)
+
+    return DeviceAuthorizeResponse(
+        authorized=True,
+        status="authorized",
+        displayName=new_device.name,
+        name=new_device.name,
+        deviceId=new_device.device_id,
+        device_id=new_device.device_id,
+        macAddress=new_device.mac_address,
+        mac_address=new_device.mac_address,
+        make=new_device.make,
+        message=f"Device '{new_device.name}' registered and authorized successfully.",
+    )
 
 
 @router.get('/{device_id}', response_model=DeviceResponse)

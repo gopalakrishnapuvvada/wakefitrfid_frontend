@@ -391,34 +391,7 @@ def create_marriage_transaction(
     )
 
 
-@router.get("/{transaction_id}", response_model=TransactionResponse)
-@router.get("/{transaction_id}/details", response_model=TransactionResponse)
-def get_transaction_by_id(
-    transaction_id: str,
-    db: Session = Depends(get_db),
-):
-    """
-    On-demand detail fetcher for a single transaction.
-    Returns full transaction metadata, relationships, and all hosted image URLs.
-    """
-    txn = (
-        db.query(TransactionData)
-        .options(
-            joinedload(TransactionData.master_item),
-            joinedload(TransactionData.device),
-            joinedload(TransactionData.status),
-        )
-        .filter(
-            or_(
-                TransactionData.transaction_id == transaction_id,
-                TransactionData.factory_rfid_tag_id == transaction_id,
-            )
-        )
-        .first()
-    )
-    if not txn:
-        raise HTTPException(status_code=404, detail=f"Transaction '{transaction_id}' not found.")
-    return txn
+
 
 
 @router.put("/{transaction_id}/status", response_model=TransactionResponse)
@@ -842,4 +815,31 @@ def clear_all_transactions(db: Session = Depends(get_db)):
     }
 
 
-
+@router.get("/{transaction_id}", response_model=TransactionResponse)
+@router.get("/{transaction_id}/details", response_model=TransactionResponse)
+def get_transaction_by_id(
+    transaction_id: str,
+    db: Session = Depends(get_db),
+):
+    """
+    On-demand detail fetcher for a single transaction.
+    Returns full transaction metadata, relationships, and all hosted image URLs.
+    """
+    txn = (
+        db.query(TransactionData)
+        .options(
+            joinedload(TransactionData.master_item),
+            joinedload(TransactionData.device),
+            joinedload(TransactionData.status),
+        )
+        .filter(
+            or_(
+                TransactionData.transaction_id == transaction_id,
+                TransactionData.factory_rfid_tag_id == transaction_id,
+            )
+        )
+        .first()
+    )
+    if not txn:
+        raise HTTPException(status_code=404, detail=f"Transaction '{transaction_id}' not found.")
+    return txn

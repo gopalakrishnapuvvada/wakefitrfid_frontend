@@ -101,7 +101,7 @@ class TransactionResponse(BaseModel):
             cat_name = (
                 (item.category.name if item and getattr(item, "category", None) else getattr(data, "category_id", None))
             )
-            dev_name = dev.display_name if dev else getattr(data, "scanner_device", None)
+            dev_name = (getattr(dev, "name", None) or getattr(dev, "display_name", None)) if dev else getattr(data, "scanner_device", None)
 
             # Fallback image resolution based on material code and category
             mat_upper = (data.material_code or "").upper()
