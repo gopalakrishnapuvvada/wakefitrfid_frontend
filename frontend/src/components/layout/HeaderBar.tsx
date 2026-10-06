@@ -173,17 +173,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
       </div>
 
       <Space size={isMobile ? 6 : 12} align="center">
-        {!isMobile && (
-          <Tooltip title={`${stats.totalActiveDevices} out of ${devices.length} hardware scanners/readers currently online`}>
-            <Tag 
-              color={stats.totalActiveDevices === devices.length ? 'success' : 'warning'} 
-              icon={<WifiOutlined />}
-              style={{ padding: '3px 10px', borderRadius: '12px', fontSize: '12px', fontWeight: 600, cursor: 'pointer' }}
-            >
-              {stats.totalActiveDevices}/{devices.length} Devices Online
-            </Tag>
-          </Tooltip>
-        )}
 
         <Tooltip title={`Switch to ${isDark ? 'Light' : 'Dark'} Mode`}>
           <Button
@@ -195,16 +184,6 @@ export const HeaderBar: React.FC<HeaderBarProps> = ({
           />
         </Tooltip>
 
-        <Popover content={notificationContent} trigger="click" placement="bottomRight">
-          <Badge count={notifications.length} size="small" offset={[-2, 4]}>
-            <Button
-              type="text"
-              shape="circle"
-              icon={<BellOutlined style={{ fontSize: '16px' }} />}
-              style={{ width: 38, height: 38 }}
-            />
-          </Badge>
-        </Popover>
 
         {/* Current Active Role Badge (Direct Switch Removed: Must Log Out & Log In) */}
         <div
