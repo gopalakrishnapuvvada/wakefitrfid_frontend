@@ -12,6 +12,7 @@ class Device(Base):
 
     device_id: Mapped[str] = mapped_column(String(100), primary_key=True)
     name: Mapped[str] = mapped_column(String(150), index=True)
+    device_type: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, default="Handheld Scanner")
     ip_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
     mac_address: Mapped[Optional[str]] = mapped_column(String(50), nullable=True, index=True)
     make: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)

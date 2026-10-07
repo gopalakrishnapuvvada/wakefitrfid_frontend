@@ -61,6 +61,7 @@ def migrate_legacy_devices_table() -> None:
                 CREATE TABLE devices_minimal (
                     device_id VARCHAR(100) NOT NULL PRIMARY KEY,
                     name VARCHAR(150) NOT NULL,
+                    device_type VARCHAR(50) DEFAULT 'Handheld Scanner',
                     ip_address VARCHAR(50),
                     mac_address VARCHAR(50),
                     make VARCHAR(100),
@@ -75,12 +76,13 @@ def migrate_legacy_devices_table() -> None:
             connection.exec_driver_sql(
                 """
                 INSERT INTO devices_minimal (
-                    device_id, name, ip_address, mac_address, make, port,
+                    device_id, name, device_type, ip_address, mac_address, make, port,
                     created_on, updated_on, created_by, updated_by
                 )
                 SELECT
                     device_id,
                     COALESCE(NULLIF(TRIM(display_name), ''), NULLIF(TRIM(asset_code), ''), device_id),
+                    'Handheld Scanner',
                     ip_address,
                     mac_address,
                     COALESCE(NULLIF(TRIM(manufacturer), ''), NULLIF(TRIM(brand), ''), 'Unknown'),
@@ -104,6 +106,26 @@ def migrate_legacy_devices_table() -> None:
         finally:
             connection.exec_driver_sql("PRAGMA foreign_keys=ON")
             connection.commit()
+
+
+def migrate_devices_table() -> None:
+    """Ensure device_type column exists in devices SQLite table."""
+    if engine.dialect.name != "sqlite":
+        return
+
+    with engine.connect() as connection:
+        columns = connection.exec_driver_sql("PRAGMA table_info(devices)").fetchall()
+        if not columns:
+            return
+
+        col_names = [column[1] for column in columns]
+        if "device_type" not in col_names:
+            try:
+                connection.exec_driver_sql("ALTER TABLE devices ADD COLUMN device_type VARCHAR(50) DEFAULT 'Handheld Scanner'")
+                connection.commit()
+            except Exception as e:
+                print(f"Notice: devices device_type column addition: {e}")
+
 
 
 def migrate_master_data_items_table() -> None:

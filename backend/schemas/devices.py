@@ -9,6 +9,7 @@ class DeviceCreateRequest(BaseModel):
     id: Optional[str] = None
     display_name: Optional[str] = Field(None, alias="displayName")
     name: Optional[str] = None
+    device_type: Optional[str] = Field("Handheld Scanner", alias="deviceType")
     ip_address: Optional[str] = Field(None, alias="ipAddress")
     mac_address: Optional[str] = Field(None, alias="macAddress")
     make: Optional[str] = None
@@ -23,6 +24,7 @@ class DeviceUpdateRequest(BaseModel):
     id: Optional[str] = None
     display_name: Optional[str] = Field(None, alias="displayName")
     name: Optional[str] = None
+    device_type: Optional[str] = Field(None, alias="deviceType")
     ip_address: Optional[str] = Field(None, alias="ipAddress")
     mac_address: Optional[str] = Field(None, alias="macAddress")
     make: Optional[str] = None
@@ -37,6 +39,7 @@ class DeviceResponse(BaseModel):
     id: str
     display_name: Optional[str] = Field(None, alias="displayName")
     name: str
+    device_type: Optional[str] = Field("Handheld Scanner", alias="deviceType")
     ip_address: Optional[str] = Field(None, alias="ipAddress")
     mac_address: Optional[str] = Field(None, alias="macAddress")
     make: Optional[str] = None
@@ -57,6 +60,7 @@ class DeviceResponse(BaseModel):
                 "id": data.device_id,
                 "display_name": data.name,
                 "name": data.name,
+                "device_type": getattr(data, "device_type", None) or "Handheld Scanner",
                 "ip_address": data.ip_address,
                 "mac_address": data.mac_address,
                 "make": data.make,
@@ -73,6 +77,7 @@ class DeviceRegisterAuthorizeRequest(BaseModel):
     mac_address: Optional[str] = Field(None, alias="macAddress")
     display_name: Optional[str] = Field(None, alias="displayName")
     name: Optional[str] = None
+    device_type: Optional[str] = Field("Handheld Scanner", alias="deviceType")
     device_id: Optional[str] = Field(None, alias="deviceId")
     id: Optional[str] = None
     status: Optional[str] = "online"

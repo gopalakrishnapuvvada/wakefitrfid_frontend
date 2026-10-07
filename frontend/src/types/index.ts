@@ -58,6 +58,8 @@ export interface MasterDataItem {
   updatedAt: string;
 }
 
+export type DeviceType = 'Handheld Scanner' | 'Fixed RFID Scanner';
+
 export type DeviceCategory = 'gateway' | 'rfid_fixed' | 'handheld' | 'barcode';
 
 export type DeviceStatus = 'online' | 'offline' | 'error';
@@ -72,6 +74,7 @@ export interface AutoIDDevice {
   id: string;
   name: string;
   displayName?: string;
+  deviceType?: DeviceType;
   ipAddress?: string;
   macAddress?: string;
   make?: string;

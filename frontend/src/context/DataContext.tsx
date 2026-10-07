@@ -31,9 +31,9 @@ interface DataContextType {
 
   // Devices
   devices: DeviceItem[];
-  addDevice: (device: Partial<DeviceItem> & { name: string }) => DeviceItem;
-  updateDevice: (id: string, updates: Partial<DeviceItem>) => void;
-  deleteDevice: (id: string) => void;
+  addDevice: (device: Partial<DeviceItem> & { name: string }) => Promise<DeviceItem>;
+  updateDevice: (id: string, updates: Partial<DeviceItem>) => Promise<DeviceItem>;
+  deleteDevice: (id: string) => Promise<void>;
   pingDevice: (id: string) => Promise<{ success: boolean; latencyMs: number; message: string }>;
   getDevicesByCategory: (category: DeviceCategory) => DeviceItem[];
 
@@ -201,68 +201,163 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     );
   };
 
-  const addDevice = (device: Partial<DeviceItem> & { name: string }): DeviceItem => {
-    const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const newDevice: DeviceItem = {
-      deviceId: device.deviceId || uuid,
-      id: device.id || uuid,
-      displayName: device.displayName || device.name,
-      name: device.displayName || device.name,
-      ipAddress: device.ipAddress || '',
-      macAddress: device.macAddress || '',
-      make: device.make || device.manufacturer || 'Unknown',
-      port: device.port ?? 0,
-      createdAt: now,
-      updatedAt: now,
-    };
+  const addDevice = async (device: Partial<DeviceItem> & { name: string }): Promise<DeviceItem> => {
+    const cleanName = (device.name || device.displayName || '').trim();
+    if (!cleanName) {
+      throw new Error('Device Name is mandatory.');
+    }
 
-    setDevices(prev => [newDevice, ...prev]);
+    const cleanIp = (device.ipAddress || '').trim();
+    if (!cleanIp) {
+      throw new Error('IP Address is mandatory.');
+    }
 
-    DevicesApi.createDevice(device)
-      .then(saved => {
-        setDevices(prev => prev.map(d => (d.id === newDevice.id ? saved : d)));
-      })
-      .catch(err => {
-        console.warn('Failed to register device to backend API:', err);
-      });
-
-    return newDevice;
-  };
-
-  const updateDevice = (id: string, updates: Partial<DeviceItem>) => {
-    setDevices(prev =>
-      prev.map(dev => {
-        if (dev.id === id || dev.deviceId === id) {
-          const merged: DeviceItem = {
-            ...dev,
-            ...updates,
-            name: updates.displayName || updates.name || dev.name,
-            displayName: updates.displayName || updates.name || dev.displayName,
-            ipAddress: updates.ipAddress || dev.ipAddress,
-            macAddress: updates.macAddress || dev.macAddress,
-            make: updates.make || updates.manufacturer || dev.make,
-            port: updates.port ?? dev.port,
-            updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
-          };
-          return merged;
-        }
-        return dev;
-      })
+    // Uniqueness validation for name and IP
+    const duplicateName = devices.find(
+      d => (d.name || d.displayName || '').trim().toLowerCase() === cleanName.toLowerCase()
     );
+    if (duplicateName) {
+      throw new Error(`Device with name '${cleanName}' already exists.`);
+    }
 
-    DevicesApi.updateDevice(id, updates).catch(err => {
-      console.warn(`Failed to update device ${id} on backend API:`, err);
-    });
+    const duplicateIp = devices.find(d => (d.ipAddress || '').trim().toLowerCase() === cleanIp.toLowerCase());
+    if (duplicateIp) {
+      throw new Error(`Device with IP Address '${cleanIp}' already exists (${duplicateIp.displayName || duplicateIp.name}).`);
+    }
+
+    const requestedType = device.deviceType || 'Handheld Scanner';
+    if (requestedType === 'Fixed RFID Scanner') {
+      const existing = devices.find(d => d.deviceType === 'Fixed RFID Scanner' || d.category === 'rfid_fixed');
+      if (existing) {
+        throw new Error(
+          `Only one Fixed RFID Scanner is allowed in the system. '${existing.displayName || existing.name}' is already registered as a Fixed RFID Scanner.`
+        );
+      }
+    }
+
+    try {
+      const saved = await DevicesApi.createDevice(device);
+      setDevices(prev => [saved, ...prev.filter(d => d.id !== saved.id && d.deviceId !== saved.deviceId)]);
+      return saved;
+    } catch (err: any) {
+      // If backend throws error (e.g. restriction or validation)
+      if (
+        err?.message &&
+        (err.message.includes('Only one Fixed RFID') ||
+          err.message.includes('already exists') ||
+          err.message.includes('mandatory') ||
+          err.message.includes('empty'))
+      ) {
+        throw err;
+      }
+      // Offline fallback
+      const uuid = typeof crypto !== 'undefined' && crypto.randomUUID ? crypto.randomUUID() : `dev-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 8)}`;
+      const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
+      const fallbackDev: DeviceItem = {
+        deviceId: device.deviceId || uuid,
+        id: device.id || uuid,
+        displayName: cleanName,
+        name: cleanName,
+        deviceType: requestedType,
+        ipAddress: cleanIp,
+        macAddress: device.macAddress || '',
+        make: device.make || device.manufacturer || 'Unknown',
+        port: device.port ?? 0,
+        createdAt: now,
+        updatedAt: now,
+      };
+      setDevices(prev => [fallbackDev, ...prev]);
+      return fallbackDev;
+    }
   };
 
-  const deleteDevice = (id: string) => {
+  const updateDevice = async (id: string, updates: Partial<DeviceItem>): Promise<DeviceItem> => {
+    if (updates.name || updates.displayName) {
+      const cleanName = (updates.name || updates.displayName || '').trim();
+      if (!cleanName) {
+        throw new Error('Device Name cannot be empty.');
+      }
+      const duplicateName = devices.find(
+        d => d.id !== id && d.deviceId !== id && (d.name || d.displayName || '').trim().toLowerCase() === cleanName.toLowerCase()
+      );
+      if (duplicateName) {
+        throw new Error(`Device with name '${cleanName}' already exists.`);
+      }
+    }
+
+    if (updates.ipAddress !== undefined) {
+      const cleanIp = updates.ipAddress.trim();
+      if (!cleanIp) {
+        throw new Error('IP Address cannot be empty.');
+      }
+      const duplicateIp = devices.find(
+        d => d.id !== id && d.deviceId !== id && (d.ipAddress || '').trim().toLowerCase() === cleanIp.toLowerCase()
+      );
+      if (duplicateIp) {
+        throw new Error(`Device with IP Address '${cleanIp}' already exists (${duplicateIp.displayName || duplicateIp.name}).`);
+      }
+    }
+
+    if (updates.deviceType === 'Fixed RFID Scanner') {
+      const existing = devices.find(
+        d => (d.deviceType === 'Fixed RFID Scanner' || d.category === 'rfid_fixed') && d.id !== id && d.deviceId !== id
+      );
+      if (existing) {
+        throw new Error(
+          `Only one Fixed RFID Scanner is allowed in the system. '${existing.displayName || existing.name}' is already registered as a Fixed RFID Scanner.`
+        );
+      }
+    }
+
+    try {
+      const updated = await DevicesApi.updateDevice(id, updates);
+      setDevices(prev => prev.map(dev => (dev.id === id || dev.deviceId === id ? updated : dev)));
+      return updated;
+    } catch (err: any) {
+      if (
+        err?.message &&
+        (err.message.includes('Only one Fixed RFID') ||
+          err.message.includes('already exists') ||
+          err.message.includes('mandatory') ||
+          err.message.includes('empty'))
+      ) {
+        throw err;
+      }
+      // Offline fallback
+      let updatedItem: DeviceItem | null = null;
+      setDevices(prev =>
+        prev.map(dev => {
+          if (dev.id === id || dev.deviceId === id) {
+            const merged: DeviceItem = {
+              ...dev,
+              ...updates,
+              name: updates.displayName || updates.name || dev.name,
+              displayName: updates.displayName || updates.name || dev.displayName,
+              deviceType: updates.deviceType || dev.deviceType || 'Handheld Scanner',
+              ipAddress: updates.ipAddress || dev.ipAddress,
+              macAddress: updates.macAddress || dev.macAddress,
+              make: updates.make || updates.manufacturer || dev.make,
+              port: updates.port ?? dev.port,
+              updatedAt: new Date().toISOString().replace('T', ' ').substring(0, 19),
+            };
+            updatedItem = merged;
+            return merged;
+          }
+          return dev;
+        })
+      );
+      return updatedItem || (updates as DeviceItem);
+    }
+  };
+
+  const deleteDevice = async (id: string): Promise<void> => {
     setDevices(prev => prev.filter(dev => dev.id !== id && dev.deviceId !== id));
 
-    // Asynchronously delete on backend API
-    DevicesApi.deleteDevice(id).catch(err => {
+    try {
+      await DevicesApi.deleteDevice(id);
+    } catch (err) {
       console.warn(`Failed to delete device ${id} on backend API:`, err);
-    });
+    }
   };
 
   const pingDevice = async (id: string): Promise<{ success: boolean; latencyMs: number; message: string }> => {
@@ -495,8 +590,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const stats = {
     totalMasterItems: masterData.length,
     totalActiveDevices: onlineDevicesCount,
-    totalHandhelds: devices.filter(d => d.category === 'handheld').length,
-    totalRfidPortals: devices.filter(d => d.category === 'rfid_fixed').length,
+    totalHandhelds: devices.filter(d => d.deviceType === 'Handheld Scanner' || (!d.deviceType && d.category !== 'rfid_fixed')).length,
+    totalRfidPortals: devices.filter(d => d.deviceType === 'Fixed RFID Scanner' || d.category === 'rfid_fixed').length,
     totalGateways: devices.filter(d => d.category === 'gateway').length,
     totalBarcodeScanners: devices.filter(d => d.category === 'barcode' || d.category === 'gateway').length,
     labelsTodayCount: labels.reduce((acc, l) => acc + l.printedCopies, 0),

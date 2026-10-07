@@ -11,6 +11,7 @@ from utils.database import (
     engine,
     SessionLocal,
     migrate_legacy_devices_table,
+    migrate_devices_table,
     migrate_master_data_items_table,
     migrate_transactions_data_table,
 )
@@ -23,6 +24,7 @@ from api.routers.transactions import router as transactions_router
 
 # Migrate the old tables before creating any missing tables.
 migrate_legacy_devices_table()
+migrate_devices_table()
 migrate_master_data_items_table()
 migrate_transactions_data_table()
 
