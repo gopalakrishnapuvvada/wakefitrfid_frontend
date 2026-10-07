@@ -312,6 +312,15 @@ def create_marriage_transaction(
             ),
         )
 
+    if item.status_id and item.status_id.lower() == "inactive":
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Inactive Material Rejected: Material Code '{clean_mat}' is currently INACTIVE in Master Data Management. "
+                f"Transactions cannot be committed for inactive material codes."
+            ),
+        )
+
     now = datetime.now(timezone.utc)
     date_str = now.strftime("%Y%m%d")
     max_sno = db.query(func.max(TransactionData.sno)).scalar() or 0
@@ -552,6 +561,8 @@ def post_can(
                 },
                 "color": item.color or "Classic Grey / Navy",
                 "status": item.status.name if item.status else "Active",
+                "statusId": item.status_id,
+                "dimensionsStr": f"{item.length_mm or 0} x {item.width_mm or 0} x {item.height_mm or 0} mm",
                 "fgImage": item_images,
                 "images": item_images,
                 "colorVariant": "Classic Grey / Navy",

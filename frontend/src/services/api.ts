@@ -217,8 +217,25 @@ export function getProductImageByMaterial(materialCode?: string, category?: stri
  * Resolves full URL for hosted images (e.g. /uploads/transactions/...)
  */
 export function resolveImageUrl(url: any): string {
-  if (!url || typeof url !== 'string') return '/products/mattress_1.jpg';
-  const u = url.trim();
+  if (!url) return '/products/mattress_1.jpg';
+  if (Array.isArray(url)) {
+    return resolveImageUrl(url[0]);
+  }
+  if (typeof url !== 'string') return '/products/mattress_1.jpg';
+  let u = url.trim();
+  if (!u || u === 'string' || u.toLowerCase() === 'null' || u.toLowerCase() === 'undefined') {
+    return '/products/mattress_1.jpg';
+  }
+  if (u.startsWith('[') && u.endsWith(']')) {
+    try {
+      const parsed = JSON.parse(u);
+      if (Array.isArray(parsed) && parsed.length > 0) {
+        return resolveImageUrl(parsed[0]);
+      }
+    } catch {
+      // ignore
+    }
+  }
   if (u.startsWith('http://') || u.startsWith('https://') || u.startsWith('data:')) {
     return u;
   }
@@ -227,6 +244,40 @@ export function resolveImageUrl(url: any): string {
     return `${API_BASE}${clean}`;
   }
   return clean;
+}
+
+/**
+ * Robustly parses and normalizes any image list representation (array, JSON string, comma/semicolon delimited string) into an array of string paths/URLs.
+ */
+export function normalizeImageList(raw: any): string[] {
+  if (!raw) return [];
+  if (Array.isArray(raw)) {
+    return raw
+      .map(item => {
+        if (typeof item === 'string') return item.trim();
+        if (item && typeof item === 'object' && item.url) return String(item.url).trim();
+        return '';
+      })
+      .filter(Boolean);
+  }
+  if (typeof raw === 'string') {
+    const trimmed = raw.trim();
+    if (!trimmed || trimmed === 'string' || trimmed.toLowerCase() === 'null' || trimmed.toLowerCase() === 'undefined') {
+      return [];
+    }
+    if (trimmed.startsWith('[') && trimmed.endsWith(']')) {
+      try {
+        const parsed = JSON.parse(trimmed);
+        if (Array.isArray(parsed)) {
+          return parsed.map(item => (typeof item === 'string' ? item.trim() : '')).filter(Boolean);
+        }
+      } catch {
+        // ignore
+      }
+    }
+    return trimmed.split(/[;,]/).map(s => s.trim()).filter(Boolean);
+  }
+  return [];
 }
 
 export function isValidImageUrl(url: any): boolean {
@@ -478,6 +529,10 @@ export const TransactionsApi = {
         ? formatToIST(t.labelLookupTimestamp || t.label_lookup_timestamp)
         : (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? createdTime : undefined);
 
+      const imgPaths = normalizeImageList(t.imagePaths || t.image_paths);
+      const imgUrls = normalizeImageList(t.imageUrls || t.image_urls || (imgPaths.length > 0 ? imgPaths : undefined));
+      const masterImgs = normalizeImageList(t.masterImages || t.master_images);
+
       return {
         id: t.id || t.transactionId || t.transaction_id,
         transactionId: t.transactionId || t.transaction_id,
@@ -490,15 +545,16 @@ export const TransactionsApi = {
         category: t.category || 'Mattress',
         mrp: 0,
         productImage: prodImg,
+        masterImages: masterImgs.length > 0 ? masterImgs : undefined,
         deviceId: t.deviceId || t.device_id || t.scanner_device || '',
         deviceName: t.deviceName || t.device_name || 'Reader',
         operatorRole: t.operatorRole || t.operator_role || t.created_by || 'Line Operator',
         status: (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
         wipScanTimestamp: wipTime,
         dispatchScanTimestamp: dispatchTime,
-        imagePaths: t.imagePaths || t.image_paths || [],
-        imageUrls: t.imageUrls || t.image_urls || [],
-        imageCount: t.imageCount || t.image_count || (t.imageUrls ? t.imageUrls.length : 0),
+        imagePaths: imgPaths,
+        imageUrls: imgUrls,
+        imageCount: t.imageCount || t.image_count || imgUrls.length || imgPaths.length || 0,
         dbStatus: 'COMMITTED_TO_SQLITE' as const,
         sqliteDatabasePath: '/data/sqlite/wakefit_fg_marriage.db',
         sqliteRecordId: t.sno || 1,
@@ -525,6 +581,10 @@ export const TransactionsApi = {
       ? formatToIST(t.labelLookupTimestamp || t.label_lookup_timestamp)
       : (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? createdTime : undefined);
 
+    const imgPaths = normalizeImageList(t.imagePaths || t.image_paths);
+    const imgUrls = normalizeImageList(t.imageUrls || t.image_urls || (imgPaths.length > 0 ? imgPaths : undefined));
+    const masterImgs = normalizeImageList(t.masterImages || t.master_images);
+
     return {
       id: t.id || t.transactionId || t.transaction_id,
       transactionId: t.transactionId || t.transaction_id,
@@ -537,15 +597,16 @@ export const TransactionsApi = {
       category: t.category || 'Mattress',
       mrp: 0,
       productImage: prodImg,
+      masterImages: masterImgs.length > 0 ? masterImgs : undefined,
       deviceId: t.deviceId || t.device_id || t.scanner_device || '',
       deviceName: t.deviceName || t.device_name || 'Reader',
       operatorRole: t.operatorRole || t.operator_role || t.created_by || 'Line Operator',
       status: (t.status === 'Dispatched' || t.status_id === 'dispatch' || t.status_id === 'dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
       wipScanTimestamp: wipTime,
       dispatchScanTimestamp: dispatchTime,
-      imagePaths: t.imagePaths || t.image_paths || [],
-      imageUrls: t.imageUrls || t.image_urls || [],
-      imageCount: t.imageCount || t.image_count || (t.imageUrls ? t.imageUrls.length : 0),
+      imagePaths: imgPaths,
+      imageUrls: imgUrls,
+      imageCount: t.imageCount || t.image_count || imgUrls.length || imgPaths.length || 0,
       dbStatus: 'COMMITTED_TO_SQLITE' as const,
       sqliteDatabasePath: '/data/sqlite/wakefit_fg_marriage.db',
       sqliteRecordId: t.sno || 1,
@@ -586,6 +647,10 @@ export const TransactionsApi = {
       scanData.matchedFgItem?.images?.[0] ||
       getProductImageByMaterial(scanData.qr1MaterialCode, scanData.matchedFgItem?.category);
 
+    const imgPaths = normalizeImageList(t.imagePaths || t.image_paths);
+    const imgUrls = normalizeImageList(t.imageUrls || t.image_urls || (imgPaths.length > 0 ? imgPaths : undefined));
+    const masterImgs = normalizeImageList(t.masterImages || t.master_images);
+
     return {
       id: t.id || t.transactionId,
       transactionId: t.transactionId,
@@ -598,12 +663,16 @@ export const TransactionsApi = {
       category: t.category || scanData.matchedFgItem?.category || 'Mattress',
       mrp: scanData.matchedFgItem?.mrp || 0,
       productImage: prodImg,
+      masterImages: masterImgs.length > 0 ? masterImgs : undefined,
       deviceId: t.deviceId || scanData.deviceId,
       deviceName: t.deviceName || scanData.deviceName,
       operatorRole: operatorRole,
       status: (t.status === 'Dispatched' ? 'Dispatched' : 'WIP') as FGTransactionStatus,
       wipScanTimestamp: t.timestamp,
       dispatchScanTimestamp: isOutboundPortal ? t.timestamp : undefined,
+      imagePaths: imgPaths,
+      imageUrls: imgUrls,
+      imageCount: t.imageCount || t.image_count || imgUrls.length || imgPaths.length || 0,
       dbStatus: 'COMMITTED_TO_SQLITE' as const,
       sqliteDatabasePath: '/data/sqlite/wakefit_fg_marriage.db',
       sqliteRecordId: t.sno || 1001,

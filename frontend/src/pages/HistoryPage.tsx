@@ -35,7 +35,7 @@ import isBetween from 'dayjs/plugin/isBetween';
 import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { MarriedTransaction, TransactionFilterParams } from '../types';
-import { getProductImageByMaterial, resolveImageUrl, TransactionsApi } from '../services/api';
+import { getProductImageByMaterial, resolveImageUrl, normalizeImageList, TransactionsApi } from '../services/api';
 
 dayjs.extend(isBetween);
 
@@ -76,6 +76,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
     setIsDetailLoading(true);
     try {
       const fullDetail = await TransactionsApi.getTransactionDetails(record.transactionId);
+      setSelectedTxn(fullDetail);
       setDetailTxn(fullDetail);
     } catch (err) {
       console.warn('Failed to load transaction images/details on demand:', err);
@@ -83,6 +84,24 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
     } finally {
       setIsDetailLoading(false);
     }
+  };
+
+  // Helper to extract captured QA / shop-floor photos associated with this transaction
+  const getCapturedPhotos = (record: MarriedTransaction | null): string[] => {
+    if (!record) return [];
+    let photos: string[] = [];
+    if (record.imageUrls && record.imageUrls.length > 0) {
+      photos = [...record.imageUrls];
+    } else if (record.imagePaths && record.imagePaths.length > 0) {
+      photos = [...record.imagePaths];
+    }
+    if (photos.length === 0 && (record as any).image_urls) {
+      photos = normalizeImageList((record as any).image_urls);
+    }
+    if (photos.length === 0 && (record as any).image_paths) {
+      photos = normalizeImageList((record as any).image_paths);
+    }
+    return photos.filter(Boolean).map(url => resolveImageUrl(url));
   };
 
   // Helper to extract ALL master images associated with this transaction's SKU
@@ -921,23 +940,18 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
 
             {/* Section 4: Captured Product QA Photos (Lazy Loaded On-Demand) */}
             {(() => {
-              const rawPhotos = (detailTxn?.imageUrls && detailTxn.imageUrls.length > 0 ? detailTxn.imageUrls : null) ||
-                                (detailTxn?.imagePaths && detailTxn.imagePaths.length > 0 ? detailTxn.imagePaths : null) ||
-                                (selectedTxn?.imageUrls && selectedTxn.imageUrls.length > 0 ? selectedTxn.imageUrls : null) ||
-                                (selectedTxn?.imagePaths && selectedTxn.imagePaths.length > 0 ? selectedTxn.imagePaths : null) ||
-                                [];
-              const capturedPhotos = rawPhotos.map((u: string) => resolveImageUrl(u));
+              const current = detailTxn || selectedTxn;
+              const capturedPhotos = getCapturedPhotos(current);
+              const totalPhotoCount = capturedPhotos.length || current?.imageCount || 0;
 
               return (
                 <div style={{ marginTop: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <PictureOutlined /> 4. Captured QA Photos
+                      <PictureOutlined /> 4. Captured QA Photos ({totalPhotoCount})
                     </span>
                     <Tag color="green" style={{ fontWeight: 700, borderRadius: '6px' }}>
-                      {capturedPhotos.length > 0 
-                        ? `${capturedPhotos.length} Photos Attached` 
-                        : (detailTxn?.imageCount ? `${detailTxn.imageCount} Photos` : (selectedTxn?.imageCount ? `${selectedTxn.imageCount} Photos` : '0 Photos'))}
+                      {totalPhotoCount > 0 ? `${totalPhotoCount} Photos Attached` : '0 Photos'}
                     </Tag>
                   </div>
 

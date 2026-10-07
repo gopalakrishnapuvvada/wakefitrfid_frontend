@@ -68,6 +68,14 @@ class TransactionResponse(BaseModel):
     product_image: Optional[str] = Field(None, alias="productImage")
     fg_image: Optional[str] = Field(None, alias="fgImage")
     master_images: List[str] = Field(default_factory=list, alias="masterImages")
+    model: Optional[str] = None
+    color: Optional[str] = None
+    colour: Optional[str] = None
+    dimensions: Optional[Dict[str, Any]] = None
+    dimensions_str: Optional[str] = Field(None, alias="dimensionsStr")
+    length_mm: Optional[int] = Field(None, alias="lengthMm")
+    width_mm: Optional[int] = Field(None, alias="widthMm")
+    height_mm: Optional[int] = Field(None, alias="heightMm")
     device_id: Optional[str] = Field(None, alias="deviceId")
     device_name: Optional[str] = Field(None, alias="deviceName")
     operator_role: Optional[str] = Field(None, alias="operatorRole")
@@ -149,6 +157,24 @@ class TransactionResponse(BaseModel):
                     elif raw_str:
                         img_paths_list = [p.strip() for p in raw_str.split(",") if p.strip()]
 
+            # If no image paths stored in DB record, check uploads/transactions/ on disk
+            if not img_paths_list and getattr(data, "transaction_id", None):
+                try:
+                    import sys
+                    from pathlib import Path
+                    if getattr(sys, "frozen", False):
+                        base_root = Path(sys.executable).resolve().parent
+                    else:
+                        base_root = Path(__file__).resolve().parent.parent
+                    tx_upload_dir = base_root / "uploads" / "transactions"
+                    if tx_upload_dir.exists():
+                        clean_tx = str(data.transaction_id).replace("/", "_").replace("\\", "_").replace(" ", "_")
+                        matched_files = sorted(tx_upload_dir.glob(f"{clean_tx}_*"))
+                        if matched_files:
+                            img_paths_list = [f"/uploads/transactions/{f.name}" for f in matched_files]
+                except Exception as ex:
+                    print(f"Notice: Image disk lookup for {getattr(data, 'transaction_id', None)}: {ex}")
+
             for p in img_paths_list:
                 if p.startswith("http://") or p.startswith("https://") or p.startswith("/"):
                     img_urls_list.append(p)
@@ -164,6 +190,23 @@ class TransactionResponse(BaseModel):
             else:
                 time_str = ""
 
+            # Model, Color and Dimensions extraction from MasterDataItem
+            dim_dict = None
+            dim_str = None
+            l_mm = None
+            w_mm = None
+            h_mm = None
+            color_val = None
+            model_val = None
+            if item:
+                l_mm = getattr(item, "length_mm", None) or 0
+                w_mm = getattr(item, "width_mm", None) or 0
+                h_mm = getattr(item, "height_mm", None) or 0
+                dim_dict = {"lengthMm": l_mm, "widthMm": w_mm, "heightMm": h_mm}
+                dim_str = f"{l_mm} x {w_mm} x {h_mm} mm"
+                color_val = getattr(item, "color", None)
+                model_val = getattr(item, "model", None) or prod_name
+
             return {
                 "sno": data.sno,
                 "transaction_id": data.transaction_id,
@@ -173,6 +216,18 @@ class TransactionResponse(BaseModel):
                 "material_code": data.material_code,
                 "part_number": data.part_number or (item.part_number if item else None),
                 "product_name": prod_name,
+                "model": model_val,
+                "color": color_val,
+                "colour": color_val,
+                "dimensions": dim_dict,
+                "dimensions_str": dim_str,
+                "dimensionsStr": dim_str,
+                "length_mm": l_mm,
+                "width_mm": w_mm,
+                "height_mm": h_mm,
+                "lengthMm": l_mm,
+                "widthMm": w_mm,
+                "heightMm": h_mm,
                 "category": cat_name,
                 "category_id": data.category_id,
                 "product_image": prod_img,
