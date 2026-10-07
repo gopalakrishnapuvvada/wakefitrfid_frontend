@@ -76,11 +76,16 @@ def _check_fixed_rfid_restriction(db: Session, target_device_id: Optional[str] =
 @router.get('/', response_model=List[DeviceResponse])
 def get_devices_data(
     db: Session = Depends(get_db),
+    device_type: Optional[str] = Query(None, alias="device_type"),
     search: Optional[str] = None,
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
     query = db.query(Device)
+
+    if device_type:
+        d_type = device_type.strip()
+        query = query.filter(Device.device_type.ilike(f"%{d_type}%"))
 
     if search:
         term = f"%{search.strip()}%"
@@ -94,6 +99,52 @@ def get_devices_data(
         )
 
     return query.order_by(Device.created_on.desc()).offset(skip).limit(limit).all()
+
+
+@router.get('/verify_handheld_name')
+def verify_handheld_name(
+    name: str = Query(..., description="Device name to verify"),
+    db: Session = Depends(get_db),
+):
+    clean_name = name.strip()
+    handhelds = (
+        db.query(Device)
+        .filter(
+            or_(
+                Device.device_type == HANDHELD_TYPE,
+                Device.device_type.ilike('%Handheld%'),
+            )
+        )
+        .all()
+    )
+
+    matched = None
+    for dev in handhelds:
+        if dev.name and dev.name.strip().lower() == clean_name.lower():
+            matched = dev
+            break
+
+    if matched:
+        return {
+            "registered": True,
+            "matched": True,
+            "message": f"Device '{matched.name}' is registered as Handheld Scanner.",
+            "device": {
+                "deviceId": matched.device_id,
+                "name": matched.name,
+                "deviceType": matched.device_type,
+                "macAddress": matched.mac_address,
+                "ipAddress": matched.ip_address,
+                "make": matched.make,
+            },
+        }
+
+    return {
+        "registered": False,
+        "matched": False,
+        "message": f"Device '{clean_name}' is not registered under Handheld Scanners in Device Management.",
+        "registeredNames": [d.name for d in handhelds if d.name],
+    }
 
 
 @router.get('/authorize', response_model=DeviceAuthorizeResponse)
