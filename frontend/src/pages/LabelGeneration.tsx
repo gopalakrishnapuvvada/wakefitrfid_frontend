@@ -211,6 +211,10 @@ export const LabelGeneration: React.FC = () => {
         }
 
         if (!isSubscribed) return;
+        if (!fixedScanner) {
+          // If no Fixed RFID Scanner is registered in Device Management, ignore scans
+          return;
+        }
         if (
           pending &&
           pending.scanId &&
@@ -320,7 +324,7 @@ export const LabelGeneration: React.FC = () => {
         clearTimeout(autoResetTimerRef.current);
       }
     };
-  }, [masterData, updateTransactionStatus, handleResetToStandby]);
+  }, [masterData, updateTransactionStatus, handleResetToStandby, fixedScanner]);
 
   // Search filter for bottom transaction records table
   const [tableSearchText, setTableSearchText] = useState<string>('');

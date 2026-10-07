@@ -103,23 +103,23 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
               width: '12px',
               height: '12px',
               borderRadius: '50%',
-              backgroundColor: isDetected ? '#F97316' : '#10B981',
-              boxShadow: isDetected 
-                ? '0 0 16px #F97316' 
-                : '0 0 8px #10B981',
-              animation: isDetected ? 'sickOrangeBlink 0.35s infinite' : 'none',
+              backgroundColor: !fixedDevice ? '#64748b' : (isDetected ? '#F97316' : '#10B981'),
+              boxShadow: !fixedDevice 
+                ? 'none' 
+                : (isDetected ? '0 0 16px #F97316' : '0 0 8px #10B981'),
+              animation: isDetected && fixedDevice ? 'sickOrangeBlink 0.35s infinite' : 'none',
             }}
           />
           <span style={{ fontWeight: 800, fontSize: '14px', letterSpacing: '0.5px', color: '#f8fafc' }}>
-            {fixedDevice?.displayName || fixedDevice?.name || 'SICK RFU630 FIXED RFID READER'}
+            {fixedDevice ? (fixedDevice.displayName || fixedDevice.name) : 'NO FIXED RFID SCANNER CONFIGURED'}
           </span>
           {fixedDevice?.ipAddress ? (
             <Tag color="cyan" style={{ fontWeight: 700, borderRadius: '6px', fontSize: '11px', margin: 0, fontFamily: 'monospace' }}>
               IP: {fixedDevice.ipAddress}{fixedDevice.port ? `:${fixedDevice.port}` : ''}
             </Tag>
           ) : (
-            <Tag color="default" style={{ fontWeight: 600, borderRadius: '6px', fontSize: '11px', margin: 0 }}>
-              IP: Auto-Discovered
+            <Tag color={fixedDevice ? "default" : "error"} style={{ fontWeight: 600, borderRadius: '6px', fontSize: '11px', margin: 0 }}>
+              {fixedDevice ? "IP: Auto-Discovered" : "Device Not Registered"}
             </Tag>
           )}
         </div>
@@ -136,9 +136,11 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              backgroundColor: isDetected ? 'rgba(249, 115, 22, 0.2)' : 'rgba(16, 185, 129, 0.15)',
-              border: `1px solid ${isDetected ? '#F97316' : '#10B981'}`,
-              color: isDetected ? '#FB923C' : '#34D399',
+              backgroundColor: !fixedDevice 
+                ? 'rgba(100, 116, 139, 0.15)' 
+                : (isDetected ? 'rgba(249, 115, 22, 0.2)' : 'rgba(16, 185, 129, 0.15)'),
+              border: `1px solid ${!fixedDevice ? '#64748b' : (isDetected ? '#F97316' : '#10B981')}`,
+              color: !fixedDevice ? '#94a3b8' : (isDetected ? '#FB923C' : '#34D399'),
             }}
           >
             <span
@@ -146,11 +148,13 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                backgroundColor: isDetected ? '#F97316' : '#10B981',
-                animation: isDetected ? 'sickOrangeBlink 0.35s infinite' : 'none',
+                backgroundColor: !fixedDevice ? '#64748b' : (isDetected ? '#F97316' : '#10B981'),
+                animation: isDetected && fixedDevice ? 'sickOrangeBlink 0.35s infinite' : 'none',
               }}
             />
-            {isDetected ? 'ORANGE BLINKING (FG DETECTED)' : 'GREEN STEADY (NO FG DETECTED)'}
+            {!fixedDevice 
+              ? 'NO SCANNER REGISTERED' 
+              : (isDetected ? 'ORANGE BLINKING (FG DETECTED)' : 'GREEN STEADY (NO FG DETECTED)')}
           </div>
 
           {/* Standby Now Button */}
@@ -430,8 +434,50 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
                 </div>
               </div>
             </div>
+          ) : !fixedDevice ? (
+            /* STATE B1: No Fixed RFID Scanner configured in Device Management */
+            <div
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                justifyContent: 'center',
+                textAlign: 'center',
+                padding: '24px 16px',
+                border: '2px dashed rgba(239, 68, 68, 0.35)',
+                borderRadius: '8px',
+                backgroundColor: 'rgba(239, 68, 68, 0.04)',
+                position: 'relative',
+                zIndex: 2,
+              }}
+            >
+              <div
+                style={{
+                  width: '44px',
+                  height: '44px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(239, 68, 68, 0.15)',
+                  border: '1px solid #ef4444',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  marginBottom: '10px',
+                  color: '#ef4444',
+                  fontSize: '20px',
+                  boxShadow: '0 0 14px rgba(239, 68, 68, 0.3)',
+                }}
+              >
+                <WifiOutlined />
+              </div>
+              <div style={{ fontSize: '13px', fontWeight: 800, color: '#f8fafc', marginBottom: '4px' }}>
+                No Fixed RFID Scanner Configured
+              </div>
+              <div style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '480px' }}>
+                Please navigate to <strong style={{ color: '#38bdf8' }}>Device Management</strong> and register a device with Device Type <strong style={{ color: '#f97316' }}>Fixed RFID Scanner</strong> to enable automatic conveyor dispatch scanning.
+              </div>
+            </div>
           ) : (
-            /* STATE B: No FG Detected (Continuous Scan Standby) -> Minimalist Clean Listening Bay */
+            /* STATE B2: No FG Detected (Continuous Scan Standby) -> Minimalist Clean Listening Bay */
             <div
               style={{
                 display: 'flex',

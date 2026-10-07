@@ -46,11 +46,26 @@ class DirectDbConsumer(EventConsumer):
                 from utils.database import SessionLocal
                 from api.routers.transactions import post_fixed_rfid
                 from schemas.transactions import PostFixedRfidRequest
+                import models
 
                 with SessionLocal() as db:
+                    # Verify that an active Fixed RFID Scanner is registered in Device Management
+                    fixed_device = (
+                        db.query(models.Device)
+                        .filter(
+                            models.Device.device_type == "Fixed RFID Scanner"
+                        )
+                        .first()
+                    )
+                    if not fixed_device:
+                        logger.warning(
+                            f"⚠️ [RFID Portal DB] Scan ignored: No Fixed RFID Scanner is currently registered in Device Management."
+                        )
+                        return
+
                     req = PostFixedRfidRequest(
                         rfidUniqueId=tag_value,
-                        scanner_device=event.device_id or "RFID-001",
+                        scanner_device=fixed_device.device_id,
                         antenna=f"Port {event.antenna_id or 1}"
                     )
                     res = post_fixed_rfid(req, db)
@@ -121,6 +136,8 @@ def load_devices_from_database() -> list[dict]:
                 })
         if devices_list:
             logger.info(f"Loaded {len(devices_list)} device(s) from database devices table.")
+        else:
+            logger.info("No devices registered in database devices table.")
     except Exception as e:
         logger.warning(f"Failed to query devices from database: {e}")
 
@@ -128,42 +145,20 @@ def load_devices_from_database() -> list[dict]:
 
 
 def load_rfid_config() -> tuple[list[dict], dict]:
-    """Load devices and webhook settings from DB first, then fallback to YAML."""
+    """Load devices and webhook settings strictly from SQLite DB, fallback to empty list."""
     cfg_path = get_config_path()
-    raw_devices: list[dict] = []
     wh_cfg: dict = {}
 
     if cfg_path.is_file():
         try:
             with open(cfg_path, "r", encoding="utf-8") as f:
                 data = yaml.safe_load(f) or {}
-                raw_devices = data.get("devices", [])
                 wh_cfg = data.get("webhook", {})
         except Exception as e:
             logger.warning(f"Failed to read {cfg_path}: {e}")
 
-    # Primary source of truth: SQLite Database Device Management table
-    db_devices = load_devices_from_database()
-    if db_devices:
-        raw_devices = db_devices
-
-    if not raw_devices:
-        # Generic standby fallback (no hardcoded IP)
-        raw_devices = [
-            {
-                "device_id": "RFID-001",
-                "name": "Fixed RFID Scanner",
-                "type": "RFID_FIXED",
-                "adapter": "sick_rfu630",
-                "vendor": "SICK",
-                "model": "RFU630",
-                "connection_type": "ETHERNET",
-                "host": None,
-                "port": 2112,
-                "station_id": "PALLET-GATE-01",
-                "enabled": True,
-            }
-        ]
+    # Primary and single source of truth: SQLite Database Device Management table
+    raw_devices = load_devices_from_database()
 
     return raw_devices, wh_cfg
 

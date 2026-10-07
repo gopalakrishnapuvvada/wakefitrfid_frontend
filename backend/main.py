@@ -165,9 +165,9 @@ def global_post_fixed_rfid(payload: dict, db=Depends(get_db)):
 
 @app.get("/api/pending_fixed_rfid")
 @app.get("/pending_fixed_rfid")
-def global_pending_fixed_rfid():
+def global_pending_fixed_rfid(db=Depends(get_db)):
     from api.routers.transactions import get_pending_fixed_rfid
-    return get_pending_fixed_rfid()
+    return get_pending_fixed_rfid(db)
 
 @app.post("/api/clear_fixed_rfid")
 @app.post("/clear_fixed_rfid")

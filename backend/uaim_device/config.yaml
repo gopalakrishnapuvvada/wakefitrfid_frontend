@@ -12,25 +12,4 @@ webhook:
   only_tag: true
   payload_field: "rfidUniqueId"   # Sends: {"rfidUniqueId": "E2801191A50400738D618D4E"}
 
-devices:
-  # 1. Fixed UHF RFID Reader (Configured dynamically via Device Management UI)
-  - device_id: RFID-001
-    name: Pallet Gate SICK RFU630
-    adapter: sick_rfu630
-    host: 0.0.0.0
-    port: 2112
-    station_id: PALLET-GATE-01
-
-  # 2. CipherLab RS38 Handheld Scanner #1 (Packing Line 1)
-  - device_id: HH-001
-    name: CipherLab RS38 Scanner #1
-    adapter: handheld
-    port: 9001
-    station_id: PACKING-01
-
-  # 3. CipherLab RS38 Handheld Scanner #2 (Packing Line 2)
-  - device_id: HH-002
-    name: CipherLab RS38 Scanner #2
-    adapter: handheld
-    port: 9002
-    station_id: PACKING-02
+devices: []

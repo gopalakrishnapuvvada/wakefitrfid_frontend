@@ -695,14 +695,32 @@ def post_fixed_rfid(
     """
     Fixed SICK RFU630 Portal Reader Detection:
     Takes RFID unique ID scanned as finished good passes overhead portal.
-    1. Verifies tag exists in transactions_data SQLite table. If not found -> 404.
-    2. Couples with Transaction ID, Material Code, Part Number, and Work Order Number.
-    3. Updates status to 'dispatch' and sets label_lookup_timestamp in transactions_data.
-    4. Emits detection event to SICK portal continuous listener in the UI.
+    1. Validates that a Fixed RFID Scanner device is configured in Device Management.
+    2. Verifies tag exists in transactions_data SQLite table. If not found -> 404.
+    3. Couples with Transaction ID, Material Code, Part Number, and Work Order Number.
+    4. Updates status to 'dispatch' and sets label_lookup_timestamp in transactions_data.
+    5. Emits detection event to SICK portal continuous listener in the UI.
     """
     global _latest_pending_fixed_scan, _fixed_scan_counter
-    _fixed_scan_counter += 1
 
+    # Check if a Fixed RFID Scanner is registered in Device Management
+    fixed_device = (
+        db.query(Device)
+        .filter(
+            or_(
+                Device.device_type == "Fixed RFID Scanner",
+                Device.device_type.ilike("%Fixed%"),
+            )
+        )
+        .first()
+    )
+    if not fixed_device:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="No Fixed RFID Scanner is registered in Device Management. Please configure a Fixed RFID Scanner in Device Management before scanning.",
+        )
+
+    _fixed_scan_counter += 1
     rfid = payload.factory_rfid_tag_id.strip()
 
     txn = (
@@ -819,11 +837,27 @@ def post_fixed_rfid(
 
 
 @router.get("/pending_fixed_rfid")
-def get_pending_fixed_rfid():
+def get_pending_fixed_rfid(db: Session = Depends(get_db)):
     """
     Returns the latest fixed RFID portal detection event for the SICK portal listener.
     """
     global _latest_pending_fixed_scan
+
+    # Verify if a Fixed RFID Scanner is currently registered in Device Management
+    fixed_device = (
+        db.query(Device)
+        .filter(
+            or_(
+                Device.device_type == "Fixed RFID Scanner",
+                Device.device_type.ilike("%Fixed%"),
+            )
+        )
+        .first()
+    )
+    if not fixed_device:
+        _latest_pending_fixed_scan = None
+        return {"pending": False, "message": "No Fixed RFID Scanner registered in Device Management"}
+
     return _latest_pending_fixed_scan or {"pending": False, "message": "No fixed RFID scan currently active"}
 
 
