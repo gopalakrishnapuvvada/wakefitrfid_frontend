@@ -29,7 +29,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
       {/* Top 4 KPI Cards */}
       <Row gutter={[16, 16]}>
         {/* 1. FG WIP Transactions Today */}
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
             style={{
@@ -60,7 +60,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </Col>
 
         {/* 2. FG Dispatch Transactions Today */}
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
             style={{
@@ -91,7 +91,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
         </Col>
 
         {/* 3. Active Hardware Devices */}
-        <Col xs={24} sm={12} lg={6}>
+        {/* <Col xs={24} sm={12} lg={6}>
           <Card
             bordered={false}
             style={{
@@ -121,10 +121,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
               Manage Devices →
             </Button>
           </Card>
-        </Col>
+        </Col> */}
 
         {/* 4. FG Master Catalog */}
-        <Col xs={24} sm={12} lg={6}>
+        <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
             style={{
