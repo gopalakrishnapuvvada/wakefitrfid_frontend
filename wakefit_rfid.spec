@@ -5,12 +5,33 @@ from pathlib import Path
 
 block_cipher = None
 
-ROOT_DIR = os.path.abspath(os.getcwd())
+ROOT_DIR = Path(SPECPATH).resolve()
+
+
+def collect_backend_data():
+    """Include backend runtime assets without copying its development database."""
+    backend_dir = ROOT_DIR / 'backend'
+    excluded_suffixes = {'.db', '.sqlite', '.sqlite3'}
+    collected = []
+
+    for current_dir, directory_names, file_names in os.walk(backend_dir):
+        directory_names[:] = [
+            name for name in directory_names
+            if name not in {'__pycache__', '.pytest_cache'}
+        ]
+        current_path = Path(current_dir)
+        for file_name in file_names:
+            source = current_path / file_name
+            if source.suffix.lower() in excluded_suffixes or source.suffix.lower() == '.pyc':
+                continue
+            destination = source.parent.relative_to(ROOT_DIR)
+            collected.append((str(source), str(destination)))
+
+    return collected
 
 datas = [
-    (os.path.join(ROOT_DIR, 'frontend', 'dist'), os.path.join('frontend', 'dist')),
-    (os.path.join(ROOT_DIR, 'backend'), 'backend'),
-]
+    (str(ROOT_DIR / 'frontend' / 'dist'), os.path.join('frontend', 'dist')),
+] + collect_backend_data()
 
 hiddenimports = [
     'uvicorn',
@@ -26,10 +47,9 @@ hiddenimports = [
     'uvicorn.protocols.websockets.auto',
     'uvicorn.protocols.websockets.websockets_impl',
     'uvicorn.protocols.websockets.wsproto_impl',
-    'uvicorn.lifespans',
-    'uvicorn.lifespans.auto',
-    'uvicorn.lifespans.on',
-    'uvicorn.lifespans.off',
+    'uvicorn.lifespan',
+    'uvicorn.lifespan.on',
+    'uvicorn.lifespan.off',
     'fastapi',
     'starlette',
     'starlette.middleware.cors',
@@ -63,7 +83,7 @@ hiddenimports = [
 
 a = Analysis(
     ['launcher.py'],
-    pathex=[ROOT_DIR, os.path.join(ROOT_DIR, 'backend')],
+    pathex=[str(ROOT_DIR), str(ROOT_DIR / 'backend')],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,
