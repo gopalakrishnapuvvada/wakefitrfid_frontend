@@ -151,6 +151,7 @@ export interface MarriedTransaction {
   category: string;
   mrp: number;
   productImage?: string;
+  masterImages?: string[];
   deviceId: string;
   deviceName: string;
   operatorRole: string;

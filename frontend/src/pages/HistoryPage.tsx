@@ -85,6 +85,55 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
     }
   };
 
+  // Helper to extract ALL master images associated with this transaction's SKU
+  const getMasterImages = (record: MarriedTransaction | null): string[] => {
+    if (!record) return [];
+    const catalogItem = masterData?.find(
+      m => m.materialCode.toUpperCase() === (record.materialCode || '').toUpperCase()
+    );
+
+    let images: string[] = [];
+
+    // 1. Matched SKU from Master Data state
+    if (catalogItem) {
+      if (Array.isArray(catalogItem.fgImage) && catalogItem.fgImage.length > 0) {
+        images = [...catalogItem.fgImage.filter(Boolean)];
+      } else if (typeof catalogItem.fgImage === 'string' && catalogItem.fgImage && catalogItem.fgImage !== 'string' && catalogItem.fgImage !== 'null') {
+        const raw = catalogItem.fgImage.trim();
+        if (raw.startsWith('[')) {
+          try {
+            const parsed = JSON.parse(raw);
+            if (Array.isArray(parsed)) images = parsed.filter(Boolean);
+          } catch {
+            images = [raw];
+          }
+        } else {
+          images = raw.split(';').map(s => s.trim()).filter(Boolean);
+        }
+      }
+      if (Array.isArray(catalogItem.images) && catalogItem.images.length > 0) {
+        catalogItem.images.forEach(img => {
+          if (img && !images.includes(img)) images.push(img);
+        });
+      }
+    }
+
+    // 2. From transaction response masterImages
+    if (Array.isArray(record.masterImages) && record.masterImages.length > 0) {
+      record.masterImages.forEach(img => {
+        if (img && !images.includes(img)) images.push(img);
+      });
+    }
+
+    // 3. Fallback to productImage or standard category mock image
+    if (images.length === 0) {
+      const fallback = record.productImage || getProductImageByMaterial(record.materialCode, record.category);
+      if (fallback) images.push(fallback);
+    }
+
+    return images.map(url => resolveImageUrl(url));
+  };
+
   // Fetch History from Backend API based on applied filters
   const fetchHistoryData = useCallback(
     async (overrides?: {
@@ -107,13 +156,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
         return null;
       }
 
+      // Send ISO string with timezone or formatted string to backend API
       const params: TransactionFilterParams = {
         search: sText.trim() || undefined,
         deviceId: sDev !== 'all' ? sDev : undefined,
         category: sCat !== 'all' ? sCat : undefined,
         status: sStat !== 'all' ? sStat : undefined,
-        startDate: sStart ? sStart.format('YYYY-MM-DD HH:mm:ss') : undefined,
-        endDate: sEnd ? sEnd.format('YYYY-MM-DD HH:mm:ss') : undefined,
+        startDate: sStart ? sStart.toISOString() : undefined,
+        endDate: sEnd ? sEnd.toISOString() : undefined,
       };
 
       setIsLoading(true);
@@ -157,13 +207,16 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
 
           let matchesDate = true;
           if (sStart || sEnd) {
-            const txnDate = dayjs(txn.timestamp);
-            if (sStart && sEnd) {
-              matchesDate = txnDate.isBetween(sStart, sEnd, null, '[]');
-            } else if (sStart) {
-              matchesDate = txnDate.isAfter(sStart) || txnDate.isSame(sStart);
-            } else if (sEnd) {
-              matchesDate = txnDate.isBefore(sEnd) || txnDate.isSame(sEnd);
+            const rawTs = txn.wipScanTimestamp || txn.timestamp;
+            const txnDate = dayjs(rawTs);
+            if (txnDate.isValid()) {
+              if (sStart && sEnd) {
+                matchesDate = (txnDate.isAfter(sStart) || txnDate.isSame(sStart)) && (txnDate.isBefore(sEnd) || txnDate.isSame(sEnd));
+              } else if (sStart) {
+                matchesDate = txnDate.isAfter(sStart) || txnDate.isSame(sStart);
+              } else if (sEnd) {
+                matchesDate = txnDate.isBefore(sEnd) || txnDate.isSame(sEnd);
+              }
             }
           }
           return matchesSearch && matchesDevice && matchesCategory && matchesStatus && matchesDate;
@@ -209,15 +262,19 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
     switch (preset) {
       case 'today':
         start = now.startOf('day');
+        end = now.endOf('day');
         break;
       case '24h':
         start = now.subtract(24, 'hour');
+        end = now;
         break;
       case '7d':
         start = now.subtract(7, 'day').startOf('day');
+        end = now.endOf('day');
         break;
       case 'month':
         start = now.startOf('month');
+        end = now.endOf('day');
         break;
       case 'all':
         start = null;
@@ -640,7 +697,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
             pageSize: 10, 
             showSizeChanger: true,
             pageSizeOptions: ['10', '20', '50', '100'],
-            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} married scan transactions` 
+            showTotal: (total, range) => `${range[0]}-${range[1]} of ${total} scan transactions` 
           }}
         />
       </Card>
@@ -660,32 +717,24 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
         {selectedTxn && (
           <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
             {/* Header Product Card */}
-            <div
-              style={{
-                backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-                padding: '16px',
-                borderRadius: '10px',
-                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                display: 'flex',
-                gap: '16px',
-                alignItems: 'center',
-              }}
-            >
-              {(() => {
-                const catalogItem = masterData?.find(
-                  m => m.materialCode.toUpperCase() === (selectedTxn.materialCode || '').toUpperCase()
-                );
-                const catalogImg = Array.isArray(catalogItem?.fgImage)
-                  ? catalogItem.fgImage[0]
-                  : (typeof catalogItem?.fgImage === 'string' && catalogItem.fgImage !== 'string' ? catalogItem.fgImage : null);
-                const imgSrc =
-                  selectedTxn.productImage ||
-                  catalogImg ||
-                  getProductImageByMaterial(selectedTxn.materialCode, selectedTxn.category);
+            {(() => {
+              const masterImgs = getMasterImages(detailTxn || selectedTxn);
+              const primaryImg = masterImgs[0] || getProductImageByMaterial(selectedTxn.materialCode, selectedTxn.category);
 
-                return (
+              return (
+                <div
+                  style={{
+                    backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                    padding: '16px',
+                    borderRadius: '10px',
+                    border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                    display: 'flex',
+                    gap: '16px',
+                    alignItems: 'center',
+                  }}
+                >
                   <Image
-                    src={imgSrc}
+                    src={primaryImg}
                     alt={selectedTxn.partNumber}
                     width={80}
                     height={80}
@@ -696,29 +745,104 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
                     }}
                     fallback="/products/mattress_1.jpg"
                   />
-                );
-              })()}
-              <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <Tag color="red" style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '12px' }}>
-                    {selectedTxn.transactionId}
-                  </Tag>
-                  <Tag color={(selectedTxn.status || 'WIP') === 'Dispatched' ? 'success' : 'warning'} style={{ fontWeight: 800 }}>
-                    {(selectedTxn.status || 'WIP') === 'Dispatched' ? '✓ Dispatched' : '● WIP'}
-                  </Tag>
+                  <div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <Tag color="red" style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '12px' }}>
+                        {selectedTxn.transactionId}
+                      </Tag>
+                      <Tag color={(selectedTxn.status || 'WIP') === 'Dispatched' ? 'success' : 'warning'} style={{ fontWeight: 800 }}>
+                        {(selectedTxn.status || 'WIP') === 'Dispatched' ? '✓ Dispatched' : '● WIP'}
+                      </Tag>
+                    </div>
+                    <div style={{ fontWeight: 800, fontSize: '15px', marginTop: '4px', color: isDark ? '#f8fafc' : '#0f172a' }}>
+                      {selectedTxn.partNumber}
+                    </div>
+                    <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
+                      {selectedTxn.productName}
+                    </div>
+                  </div>
                 </div>
-                <div style={{ fontWeight: 800, fontSize: '15px', marginTop: '4px', color: isDark ? '#f8fafc' : '#0f172a' }}>
-                  {selectedTxn.partNumber}
-                </div>
-                <div style={{ fontSize: '12px', color: '#64748b', marginTop: '2px' }}>
-                  {selectedTxn.productName}
-                </div>
-              </div>
-            </div>
+              );
+            })()}
 
-            {/* Structured SQLite Record Details */}
+            {/* Section 1: Master Catalog SKU Images */}
+            {(() => {
+              const masterImgs = getMasterImages(detailTxn || selectedTxn);
+
+              return (
+                <div style={{ marginTop: '4px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
+                    <span style={{ fontSize: '13px', fontWeight: 700, color: '#D97706', display: 'flex', alignItems: 'center', gap: '6px' }}>
+                      <PictureOutlined /> 1. Master Catalog SKU Images ({masterImgs.length})
+                    </span>
+                    <Tag color="orange" style={{ fontWeight: 700, borderRadius: '6px' }}>
+                      {masterImgs.length} Configured in Master Data
+                    </Tag>
+                  </div>
+
+                  <div
+                    style={{
+                      backgroundColor: isDark ? '#0f172a' : '#f8fafc',
+                      padding: '12px',
+                      borderRadius: '8px',
+                      border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
+                    }}
+                  >
+                    <Image.PreviewGroup>
+                      <div
+                        style={{
+                          display: 'grid',
+                          gridTemplateColumns: 'repeat(auto-fill, minmax(110px, 1fr))',
+                          gap: '10px',
+                        }}
+                      >
+                        {masterImgs.map((url, idx) => (
+                          <div
+                            key={idx}
+                            style={{
+                              position: 'relative',
+                              borderRadius: '8px',
+                              overflow: 'hidden',
+                              border: `1px solid ${isDark ? '#334155' : '#cbd5e1'}`,
+                              backgroundColor: isDark ? '#1e293b' : '#ffffff',
+                            }}
+                          >
+                            <Image
+                              src={url}
+                              alt={`Master Image ${idx + 1}`}
+                              height={95}
+                              width="100%"
+                              style={{ objectFit: 'cover' }}
+                              fallback="/products/mattress_1.jpg"
+                            />
+                            <div
+                              style={{
+                                position: 'absolute',
+                                bottom: 0,
+                                left: 0,
+                                right: 0,
+                                backgroundColor: 'rgba(15, 23, 42, 0.75)',
+                                color: '#ffffff',
+                                fontSize: '10px',
+                                textAlign: 'center',
+                                padding: '2px 0',
+                                fontWeight: 700,
+                              }}
+                            >
+                              SKU #{idx + 1}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </Image.PreviewGroup>
+                  </div>
+                </div>
+              );
+            })()}
+
+            {/* Section 2: Structured SQLite Record Details */}
             <Descriptions
-              title={<span style={{ fontSize: '13px', fontWeight: 700, color: '#E53935' }}>1. Married Key Bindings</span>}
+              title={<span style={{ fontSize: '13px', fontWeight: 700, color: '#E53935' }}>2. Married Key Bindings</span>}
               bordered
               size="small"
               column={1}
@@ -776,8 +900,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
               </Descriptions.Item>
             </Descriptions>
 
+            {/* Section 3: Hardware & SQLite Commitment */}
             <Descriptions
-              title={<span style={{ fontSize: '13px', fontWeight: 700, color: '#0284C7' }}>2. Hardware & SQLite Commitment</span>}
+              title={<span style={{ fontSize: '13px', fontWeight: 700, color: '#0284C7' }}>3. Hardware & SQLite Commitment</span>}
               bordered
               size="small"
               column={1}
@@ -794,7 +919,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
               </Descriptions.Item>
             </Descriptions>
 
-            {/* Section 3: Captured Product QA Photos (Lazy Loaded On-Demand) */}
+            {/* Section 4: Captured Product QA Photos (Lazy Loaded On-Demand) */}
             {(() => {
               const rawPhotos = (detailTxn?.imageUrls && detailTxn.imageUrls.length > 0 ? detailTxn.imageUrls : null) ||
                                 (detailTxn?.imagePaths && detailTxn.imagePaths.length > 0 ? detailTxn.imagePaths : null) ||
@@ -807,7 +932,7 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
                 <div style={{ marginTop: '8px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '8px' }}>
                     <span style={{ fontSize: '13px', fontWeight: 700, color: '#10B981', display: 'flex', alignItems: 'center', gap: '6px' }}>
-                      <PictureOutlined /> 3. Captured QA Photos
+                      <PictureOutlined /> 4. Captured QA Photos
                     </span>
                     <Tag color="green" style={{ fontWeight: 700, borderRadius: '6px' }}>
                       {capturedPhotos.length > 0 

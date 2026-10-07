@@ -74,7 +74,51 @@ def save_transaction_images(txn_id: str, images: List[str]) -> List[str]:
         except Exception as e:
             print(f"Warning: Failed to save image {idx} for transaction {txn_id}: {e}")
 
-    return saved_paths
+def parse_filter_datetime(val: Optional[str], is_end: bool = False) -> Optional[datetime]:
+    """
+    Parses start_date / end_date from client (which may be ISO with 'Z', ISO with timezone offset,
+    or naive formatted string in IST 'YYYY-MM-DD HH:mm:ss') and converts to UTC naive datetime
+    for querying SQLite database where created_on and product_validation_timestamp are stored in UTC.
+    """
+    if not val or not isinstance(val, str):
+        return None
+    raw = val.strip()
+    if not raw:
+        return None
+
+    # Handle ISO strings with Z
+    iso_candidate = raw
+    if iso_candidate.endswith("Z") or iso_candidate.endswith("z"):
+        iso_candidate = iso_candidate[:-1] + "+00:00"
+
+    try:
+        dt = datetime.fromisoformat(iso_candidate)
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        else:
+            # Naive datetime from client is in local IST (UTC+5:30)
+            return dt.replace(tzinfo=IST).astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception:
+        pass
+
+    # Try common string formats
+    for fmt in ("%Y-%m-%d %H:%M:%S", "%Y-%m-%d %H:%M"):
+        try:
+            dt = datetime.strptime(raw, fmt)
+            return dt.replace(tzinfo=IST).astimezone(timezone.utc).replace(tzinfo=None)
+        except Exception:
+            pass
+
+    # Date-only format
+    try:
+        dt = datetime.strptime(raw, "%Y-%m-%d")
+        if is_end:
+            dt = dt.replace(hour=23, minute=59, second=59, microsecond=999999)
+        return dt.replace(tzinfo=IST).astimezone(timezone.utc).replace(tzinfo=None)
+    except Exception:
+        pass
+
+    return None
 
 # In-memory buffer for latest scanned label awaiting user decision (Queue vs Cancel)
 _latest_pending_scan: Dict[str, Any] | None = None
@@ -149,38 +193,24 @@ def get_transactions(
         )
 
     if start_date:
-        clean_start = start_date.strip().replace("T", " ")
-        if "." in clean_start and "+" in clean_start:
-            clean_start = clean_start.split("+")[0]
-        try:
-            dt_start = datetime.fromisoformat(clean_start)
-            if dt_start.tzinfo is not None:
-                dt_start = dt_start.astimezone(timezone.utc).replace(tzinfo=None)
+        dt_start = parse_filter_datetime(start_date, is_end=False)
+        if dt_start:
             query = query.filter(
                 or_(
                     TransactionData.product_validation_timestamp >= dt_start,
                     TransactionData.created_on >= dt_start,
                 )
             )
-        except Exception:
-            pass
 
     if end_date:
-        clean_end = end_date.strip().replace("T", " ")
-        if "." in clean_end and "+" in clean_end:
-            clean_end = clean_end.split("+")[0]
-        try:
-            dt_end = datetime.fromisoformat(clean_end)
-            if dt_end.tzinfo is not None:
-                dt_end = dt_end.astimezone(timezone.utc).replace(tzinfo=None)
+        dt_end = parse_filter_datetime(end_date, is_end=True)
+        if dt_end:
             query = query.filter(
                 or_(
                     TransactionData.product_validation_timestamp <= dt_end,
                     TransactionData.created_on <= dt_end,
                 )
             )
-        except Exception:
-            pass
 
     if search:
         term = f"%{search.strip()}%"

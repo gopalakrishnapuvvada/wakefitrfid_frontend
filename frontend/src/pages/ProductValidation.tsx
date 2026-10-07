@@ -1,51 +1,37 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { 
   Card, 
-  Button, 
-  Space, 
   Table, 
   Tag, 
   message, 
-  Carousel,
-  Image,
-  Input,
+  Image, 
+  Input, 
   Tooltip,
-  Row,
-  Col,
-  Modal
+  Modal 
 } from 'antd';
 import { 
   SearchOutlined, 
-  ThunderboltOutlined, 
   DatabaseOutlined, 
-  CheckOutlined, 
-  LoadingOutlined,
-  FileTextOutlined,
-  QrcodeOutlined,
   CloseCircleOutlined,
   ClockCircleOutlined,
   CheckCircleOutlined,
-  BarcodeOutlined,
   ExclamationCircleOutlined
 } from '@ant-design/icons';
 import confetti from 'canvas-confetti';
 import { useData } from '../context/DataContext';
-import { useAuth } from '../context/AuthContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { ScannedLabelData, MarriedTransaction, MasterDataItem } from '../types';
 import { TransactionsApi, getProductImageByMaterial } from '../services/api';
 import { formatToIST, getCurrentIST } from '../utils/dateUtils';
 
 export const ProductValidation: React.FC = () => {
-  const { masterData, devices, marriedTransactions, queueMarryTransaction, refreshTransactions } = useData();
-  const { currentRole } = useAuth();
+  const { masterData, devices, marriedTransactions, refreshTransactions } = useData();
   const { isDark } = useAppTheme();
 
   // Active Handheld Terminal
   const cipherDevices = devices.filter(d => d.brand === 'CIPHER' || d.category === 'handheld');
   const activeDevice = cipherDevices[0] || devices[0];
 
-  const [isQueueing, setIsQueueing] = useState(false);
   const [lastCommittedTxn, setLastCommittedTxn] = useState<MarriedTransaction | null>(null);
   const [searchText, setSearchText] = useState('');
 
@@ -809,302 +795,6 @@ export const ProductValidation: React.FC = () => {
       deviceId: activeDevice.id,
       deviceName: activeDevice.name,
     });
-  };
-
-  // Cancel Action: Clear/Cancel current scan without saving to DB
-  const handleCancelScan = async () => {
-    setCurrentScan(null);
-    currentScanRef.current = null;
-    setLastCommittedTxn(null);
-    setLastProcessedScanId(null);
-    lastProcessedScanIdRef.current = null;
-    try {
-      const cancelFn = TransactionsApi.cancelScan || (TransactionsApi as any).cancelCan;
-      if (typeof cancelFn === 'function') {
-        await cancelFn();
-      } else {
-        await fetch('/api/transactions/cancel_scan', { method: 'POST' });
-      }
-    } catch (err) {
-      console.warn('Failed to clear pending scan on backend:', err);
-    }
-    message.info('Scan session reset.');
-  };
-
-  // Helper to evaluate Read Success / Read Failed (Material code, Work Order, RFID ID)
-  const getReadStatus = (scan: ScannedLabelData | null = currentScan) => {
-    const missingFields: string[] = [];
-    if (!scan?.rfidUniqueId || scan.rfidUniqueId === 'NOT_DETECTED' || scan.rfidUniqueId.includes('FAIL') || scan.rfidUniqueId.includes('INVALID')) {
-      missingFields.push('RFID Tag');
-    }
-    if (!scan?.qr1MaterialCode || !scan.matchedFgItem || scan.qr1MaterialCode === 'INVALID-OR-UNREADABLE' || scan.qr1MaterialCode.includes('FAIL') || scan.qr1MaterialCode.includes('INVALID')) {
-      if (scan?.qr1MaterialCode && !scan.matchedFgItem) {
-        missingFields.push('Material Code (Not in Master Data)');
-      } else {
-        missingFields.push('Material Code');
-      }
-    }
-    if (!scan?.qr2WorkOrderNo || scan.qr2WorkOrderNo === 'MISSING_WO_CODE' || scan.qr2WorkOrderNo.includes('FAIL') || scan.qr2WorkOrderNo.includes('INVALID')) {
-      missingFields.push('Work Order No');
-    }
-
-    const capturedCount = 3 - missingFields.length;
-
-    if (capturedCount === 3 && scan?.readingSuccess) {
-      return {
-        isSuccess: true,
-        title: 'Ready for Queue (3/3 Verified)',
-        description: 'All 3 Auto-ID data points verified. Review information below and click Queue to save to SQLite DB.',
-        capturedCount: 3,
-        missingFields,
-      };
-    } else if (capturedCount > 0) {
-      return {
-        isSuccess: false,
-        title: `Scan In Progress (${capturedCount}/3 Captured)`,
-        description: `Waiting for: ${missingFields.join(' and ')}. Trigger RS38 handheld reader to scan the remaining code(s).`,
-        capturedCount,
-        missingFields,
-      };
-    } else {
-      return {
-        isSuccess: false,
-        title: 'Listening for Live Scanner Data (0/3 Captured)',
-        description: `Active Device: ${activeDevice?.name || 'CIPHER RS38 Handheld Reader'}. Awaiting live barcode/RFID scan events from device.`,
-        capturedCount: 0,
-        missingFields,
-      };
-    }
-  };
-
-  // Queue Action: Marry RFID Tag ID + Material Code/Part Number + WO No. in SQLite DB
-  const handleQueueTransaction = async () => {
-    if (!currentScan) return;
-
-    // Strict foreign key pre-validation
-    const cleanMat = (currentScan.qr1MaterialCode || '').trim().toUpperCase();
-    const existsInMaster = masterData.some(
-      m => m.materialCode.toUpperCase() === cleanMat || m.partNumber?.toUpperCase() === cleanMat
-    ) || (currentScan.matchedFgItem && !String(currentScan.matchedFgItem.id).startsWith('temp-'));
-
-    if (!existsInMaster || !currentScan.matchedFgItem) {
-      Modal.error({
-        title: (
-          <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
-            ⚠️ Material Code Not in Master Data Management
-          </span>
-        ),
-        icon: <CloseCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
-        centered: true,
-        width: 520,
-        okText: 'Acknowledge',
-        okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
-        content: (
-          <div style={{ marginTop: '12px' }}>
-            <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
-              Cannot insert into SQLite database: Material Code <strong>'{currentScan.qr1MaterialCode}'</strong> is not present in Master Data Management.
-            </p>
-            <div
-              style={{
-                backgroundColor: isDark ? '#1e293b' : '#fef2f2',
-                border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
-                borderRadius: '8px',
-                padding: '12px 16px',
-                fontSize: '13px',
-                marginBottom: '12px',
-              }}
-            >
-              <div>
-                <strong>Material Code:</strong>{' '}
-                <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
-                  {currentScan.qr1MaterialCode}
-                </span>
-              </div>
-              <div style={{ marginTop: '6px' }}>
-                <Tag color="error">FOREIGN KEY RELATIONSHIP REQUIRED</Tag>
-              </div>
-            </div>
-            <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
-              Under database foreign key constraints, this item cannot be inserted until it is registered in Material Management.
-            </div>
-          </div>
-        ),
-      });
-      return;
-    }
-
-    if (!currentScan.readingSuccess) {
-      message.error('Cannot queue: Label reading is incomplete or failed.');
-      return;
-    }
-
-    if (currentScan.isQueued) {
-      message.info('This transaction has already been queued and saved.');
-      return;
-    }
-
-    // Double check RFID uniqueness before submitting
-    const existingRfidTxn = marriedTransactions.find(
-      t => t.rfidUniqueId?.trim().toUpperCase() === currentScan.rfidUniqueId?.trim().toUpperCase()
-    );
-    if (existingRfidTxn) {
-      Modal.warning({
-        title: (
-          <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
-            ⚠️ Factory RFID Tag Already Present
-          </span>
-        ),
-        icon: <ExclamationCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
-        centered: true,
-        width: 540,
-        okText: 'Scan Another RFID Tag',
-        okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
-        content: (
-          <div style={{ marginTop: '12px' }}>
-            <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
-              The Factory RFID Tag <strong>{currentScan.rfidUniqueId}</strong> has <strong>already been registered</strong> in Transaction <strong>{existingRfidTxn.transactionId}</strong>! Every RFID tag is unique across the entire database.
-            </p>
-          </div>
-        ),
-      });
-      return;
-    }
-
-    setIsQueueing(true);
-    try {
-      const txn = await queueMarryTransaction(currentScan, currentRole.name);
-      setIsQueueing(false);
-      setLastCommittedTxn(txn);
-      if (refreshTransactions) {
-        refreshTransactions();
-      }
-      // Once submitted, return to the original screen waiting for scanned data
-      setCurrentScan(null);
-      currentScanRef.current = null;
-      setLastProcessedScanId(null);
-      lastProcessedScanIdRef.current = null;
-
-      try {
-        const cancelFn = TransactionsApi.cancelScan || (TransactionsApi as any).cancelCan;
-        if (typeof cancelFn === 'function') {
-          await cancelFn();
-        } else {
-          await fetch('/api/transactions/cancel_scan', { method: 'POST' });
-        }
-      } catch {
-        // quiet
-      }
-
-      confetti({
-        particleCount: 65,
-        spread: 85,
-        origin: { y: 0.5 },
-      });
-
-      message.success({
-        content: `Transaction Queued! RFID [${txn.rfidUniqueId}] ⮀ Material [${txn.materialCode}] ⮀ WO [${txn.workOrderNo}].`,
-        duration: 4,
-      });
-    } catch (err: any) {
-      setIsQueueing(false);
-      const errMsg = err?.message || 'Failed to communicate with Python SQLite service.';
-      if (
-        errMsg.toLowerCase().includes('duplicate rfid') ||
-        (errMsg.toLowerCase().includes('rfid') && (errMsg.toLowerCase().includes('already registered') || errMsg.toLowerCase().includes('unique') || errMsg.toLowerCase().includes('already present')))
-      ) {
-        Modal.warning({
-          title: (
-            <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
-              ⚠️ Factory RFID Tag Already Present
-            </span>
-          ),
-          icon: <ExclamationCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
-          centered: true,
-          width: 540,
-          okText: 'Acknowledge',
-          okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
-          content: (
-            <div style={{ marginTop: '12px' }}>
-              <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
-                Database rejection: The scanned Factory RFID Tag ID is <strong>already registered in the database</strong>. Every RFID tag must be unique across the entire system.
-              </p>
-              <div
-                style={{
-                  backgroundColor: isDark ? '#1e293b' : '#fef2f2',
-                  border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
-                  borderRadius: '8px',
-                  padding: '12px 16px',
-                  fontSize: '13px',
-                  marginBottom: '12px',
-                }}
-              >
-                <div>
-                  <strong>Factory RFID Tag ID:</strong>{' '}
-                  <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
-                    {currentScan?.rfidUniqueId}
-                  </span>
-                </div>
-                <div style={{ marginTop: '6px' }}>
-                  <Tag color="error">SQLITE UNIQUE RFID CONSTRAINT VIOLATION</Tag>
-                </div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
-                {errMsg}
-              </div>
-            </div>
-          ),
-        });
-      } else if (
-        errMsg.toLowerCase().includes('foreign key') ||
-        errMsg.toLowerCase().includes('master data') ||
-        errMsg.toLowerCase().includes('material management')
-      ) {
-        Modal.error({
-          title: (
-            <span style={{ fontSize: '16px', fontWeight: 800, color: '#dc2626' }}>
-              ⚠️ Database Foreign Key Constraint Failed
-            </span>
-          ),
-          icon: <CloseCircleOutlined style={{ color: '#dc2626', fontSize: '24px' }} />,
-          centered: true,
-          width: 520,
-          okText: 'Acknowledge',
-          okButtonProps: { type: 'primary', danger: true, style: { fontWeight: 700 } },
-          content: (
-            <div style={{ marginTop: '12px' }}>
-              <p style={{ fontSize: '13px', color: isDark ? '#cbd5e1' : '#475569', marginBottom: '12px' }}>
-                Database rejection: The Material Code is <strong>not present in Master Data Management</strong>.
-              </p>
-              <div
-                style={{
-                  backgroundColor: isDark ? '#1e293b' : '#fef2f2',
-                  border: `1px solid ${isDark ? '#991b1b' : '#fecaca'}`,
-                  borderRadius: '8px',
-                  padding: '12px 16px',
-                  fontSize: '13px',
-                  marginBottom: '12px',
-                }}
-              >
-                <div>
-                  <strong>Material Code:</strong>{' '}
-                  <span style={{ color: '#dc2626', fontFamily: 'monospace', fontWeight: 800 }}>
-                    {currentScan?.qr1MaterialCode}
-                  </span>
-                </div>
-                <div style={{ marginTop: '6px' }}>
-                  <Tag color="error">SQLITE FOREIGN KEY VIOLATION</Tag>
-                </div>
-              </div>
-              <div style={{ fontSize: '12px', color: '#dc2626', fontWeight: 600 }}>
-                {errMsg}
-              </div>
-            </div>
-          ),
-        });
-      } else {
-        message.error(errMsg);
-      }
-    }
   };
 
   // Filter for WIP records only - dispatched records belong in history and outbound dispatch portal

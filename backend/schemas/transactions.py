@@ -67,6 +67,7 @@ class TransactionResponse(BaseModel):
     category_id: Optional[str] = Field(None, alias="categoryId")
     product_image: Optional[str] = Field(None, alias="productImage")
     fg_image: Optional[str] = Field(None, alias="fgImage")
+    master_images: List[str] = Field(default_factory=list, alias="masterImages")
     device_id: Optional[str] = Field(None, alias="deviceId")
     device_name: Optional[str] = Field(None, alias="deviceName")
     operator_role: Optional[str] = Field(None, alias="operatorRole")
@@ -107,10 +108,12 @@ class TransactionResponse(BaseModel):
             mat_upper = (data.material_code or "").upper()
             cat_lower = (str(cat_name) or "").lower()
             prod_img = None
+            master_imgs: List[str] = []
             if item and item.fg_image:
                 from schemas.master_data import normalize_fg_image
                 norm_imgs = normalize_fg_image(item.fg_image)
                 if norm_imgs:
+                    master_imgs = norm_imgs
                     prod_img = norm_imgs[0]
             if not prod_img:
                 if "REC" in mat_upper or "recliner" in cat_lower:
@@ -125,6 +128,7 @@ class TransactionResponse(BaseModel):
                     prod_img = "/products/mattress_2.jpg"
                 else:
                     prod_img = "/products/mattress_1.jpg"
+                master_imgs = [prod_img]
 
             # Parse captured transaction image paths & URLs
             raw_img_paths = getattr(data, "image_paths", None)
@@ -173,6 +177,8 @@ class TransactionResponse(BaseModel):
                 "category_id": data.category_id,
                 "product_image": prod_img,
                 "fg_image": prod_img,
+                "master_images": master_imgs,
+                "masterImages": master_imgs,
                 "device_id": data.scanner_device,
                 "device_name": dev_name,
                 "operator_role": data.created_by or "Operator",
