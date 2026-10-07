@@ -274,11 +274,10 @@ export const MasterDataApi = {
           heightMm: item.dimensions?.heightMm || 0,
         },
         color: item.color || '',
-        packageType: item.packageType || 'Rolled Vacuum Box',
         status: (item.status === 'On hold' ? 'On hold' : item.status === 'Inactive' ? 'Inactive' : 'Active'),
         productName: item.productName || item.productDescription || item.model,
-        createdAt: item.createdOn ? item.createdOn.replace('T', ' ').substring(0, 19) : '',
-        updatedAt: item.updatedOn ? item.updatedOn.replace('T', ' ').substring(0, 19) : '',
+        createdAt: formatToIST(item.createdOn),
+        updatedAt: formatToIST(item.updatedOn || item.createdOn),
       };
     });
   },
@@ -301,7 +300,6 @@ export const MasterDataApi = {
       productDescription: item.productDescription,
       dimensions: item.dimensions,
       color: item.color,
-      packageType: item.packageType,
       status: item.status,
     };
 
@@ -331,11 +329,10 @@ export const MasterDataApi = {
       productDescription: res.productDescription,
       dimensions: res.dimensions || item.dimensions,
       color: res.color || item.color || '',
-      packageType: res.packageType || item.packageType,
       status: res.status || item.status,
       productName: res.productName || res.productDescription || res.model,
-      createdAt: res.createdOn ? res.createdOn.replace('T', ' ').substring(0, 19) : '',
-      updatedAt: res.updatedOn ? res.updatedOn.replace('T', ' ').substring(0, 19) : '',
+      createdAt: formatToIST(res.createdOn),
+      updatedAt: formatToIST(res.updatedOn || res.createdOn),
     };
   },
 
@@ -357,7 +354,6 @@ export const MasterDataApi = {
       productDescription: updates.productDescription,
       dimensions: updates.dimensions,
       color: updates.color,
-      packageType: updates.packageType,
       status: updates.status,
     };
 
@@ -389,11 +385,10 @@ export const MasterDataApi = {
       productDescription: res.productDescription,
       dimensions: res.dimensions || updates.dimensions || { lengthMm: 0, widthMm: 0, heightMm: 0 },
       color: res.color || updates.color || '',
-      packageType: res.packageType || updates.packageType || 'Rolled Vacuum Box',
       status: res.status || updates.status || 'Active',
       productName: res.productName || res.productDescription || res.model,
-      createdAt: res.createdOn ? res.createdOn.replace('T', ' ').substring(0, 19) : '',
-      updatedAt: res.updatedOn ? res.updatedOn.replace('T', ' ').substring(0, 19) : '',
+      createdAt: formatToIST(res.createdOn),
+      updatedAt: formatToIST(res.updatedOn || res.createdOn),
     };
   },
 

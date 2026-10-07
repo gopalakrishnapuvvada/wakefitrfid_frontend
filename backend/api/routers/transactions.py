@@ -551,7 +551,6 @@ def post_can(
                     "heightMm": item.height_mm or 0,
                 },
                 "color": item.color or "Classic Grey / Navy",
-                "packageType": item.package_type or "Rolled Vacuum Box",
                 "status": item.status.name if item.status else "Active",
                 "fgImage": item_images,
                 "images": item_images,
@@ -779,7 +778,6 @@ def post_fixed_rfid(
                 "heightMm": item.height_mm or 0,
             },
             "color": item.color or "Classic Grey / Navy",
-            "packageType": item.package_type or "Rolled Vacuum Box",
             "fgImage": item_images,
             "images": item_images,
         }

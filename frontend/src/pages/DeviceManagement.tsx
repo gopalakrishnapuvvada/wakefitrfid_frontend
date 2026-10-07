@@ -6,7 +6,7 @@ import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { DeviceItem } from '../types';
 
-const { Title, Paragraph } = Typography;
+const { Title } = Typography;
 
 export const DeviceManagement: React.FC = () => {
   const { devices, addDevice, updateDevice, deleteDevice } = useData();
@@ -144,9 +144,6 @@ export const DeviceManagement: React.FC = () => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
           <div>
             <Title level={4} style={{ margin: 0 }}>Device Management</Title>
-            <Paragraph style={{ margin: 0, color: '#64748b', fontSize: '13px' }}>
-              Simple device list with name, IP, MAC address, make, and port.
-            </Paragraph>
           </div>
 
           <Button type="primary" icon={<PlusOutlined />} onClick={() => handleOpenModal()}>

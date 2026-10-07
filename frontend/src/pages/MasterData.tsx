@@ -40,6 +40,7 @@ import {
 import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { MasterDataItem, MasterDataStatus, MarriedTransaction } from '../types';
+import { formatToIST } from '../utils/dateUtils';
 
 export const NO_IMAGE_FALLBACK = '/images/no_image.svg';
 
@@ -59,16 +60,6 @@ export const MasterData: React.FC = () => {
   const [modalImages, setModalImages] = useState<string[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
   const [form] = Form.useForm();
-
-  // Preset package types
-  const packageTypes = [
-    'Rolled Vacuum Box',
-    'Corrugated Carton Box',
-    'Heavy-duty Polybag',
-    'Heavy-duty Corrugated Crate',
-    'Custom Wooden Crate',
-    'Shrink-wrapped Bundle',
-  ];
 
   // Preset categories
   const categories = ['Mattress', 'Sofa', 'Recliner', 'Bed Frame', 'Pillow', 'Accessories'];
@@ -106,7 +97,6 @@ export const MasterData: React.FC = () => {
         widthMm: item.dimensions?.widthMm || 0,
         heightMm: item.dimensions?.heightMm || 0,
         color: item.color || '',
-        packageType: item.packageType || 'Rolled Vacuum Box',
         status: item.status || (item.isActive !== false ? 'Active' : 'Inactive'),
       });
     } else {
@@ -116,7 +106,7 @@ export const MasterData: React.FC = () => {
       form.setFieldsValue({
         category: 'Mattress',
         model: '',
-        packageType: 'Rolled Vacuum Box',
+        productDescription: '',
         status: 'Active' as MasterDataStatus,
         color: 'Classic Grey',
         lengthMm: 1981,
@@ -234,18 +224,17 @@ export const MasterData: React.FC = () => {
         partNumber: cleanPart,
         category: values.category,
         model: values.model.trim(),
-        productDescription: values.productDescription.trim(),
+        productDescription: (values.productDescription || '').trim(),
         dimensions: {
           lengthMm: Number(values.lengthMm) || 0,
           widthMm: Number(values.widthMm) || 0,
           heightMm: Number(values.heightMm) || 0,
         },
         color: (values.color || '').trim(),
-        packageType: values.packageType,
         status: values.status as MasterDataStatus,
 
         // Compat fields
-        productName: values.productDescription.trim(),
+        productName: (values.productDescription || values.model || '').trim(),
         isActive: values.status === 'Active',
       };
 
@@ -376,7 +365,7 @@ export const MasterData: React.FC = () => {
 
   const handleExportCSV = () => {
     const headers = [
-      'FG Image,Material Code,Part Number,Category,Model,Product Description,Dimensions (LxWxH mm),Color,Package Type,Status'
+      'FG Image,Material Code,Part Number,Category,Model,Product Description,Dimensions (LxWxH mm),Color,Status'
     ];
     const rows = filteredData.map(item => {
       let img = '';
@@ -391,10 +380,9 @@ export const MasterData: React.FC = () => {
       const desc = (item.productDescription || item.productName || '').replace(/"/g, '""');
       const dim = `${item.dimensions?.lengthMm || 0}x${item.dimensions?.widthMm || 0}x${item.dimensions?.heightMm || 0}`;
       const col = item.color || '';
-      const pkg = item.packageType || '';
       const st = item.status || (item.isActive ? 'Active' : 'Inactive');
 
-      return `"${img}","${item.materialCode}","${item.partNumber}","${item.category}","${model}","${desc}","${dim}","${col}","${pkg}","${st}"`;
+      return `"${img}","${item.materialCode}","${item.partNumber}","${item.category}","${model}","${desc}","${dim}","${col}","${st}"`;
     });
 
     const csvContent = 'data:text/csv;charset=utf-8,' + [headers, ...rows].join('\n');
@@ -870,10 +858,6 @@ export const MasterData: React.FC = () => {
                 {detailItem.color ? <Tag color="cyan" style={{ fontWeight: 700 }}>{detailItem.color}</Tag> : <strong style={{ color: '#64748b' }}>—</strong>}
               </Descriptions.Item>
 
-              <Descriptions.Item label="Package Type">
-                <Tag color="default">{detailItem.packageType || 'Rolled Vacuum Box'}</Tag>
-              </Descriptions.Item>
-
               <Descriptions.Item label="Status">
                 {renderStatusTag(detailItem.status, detailItem.isActive)}
               </Descriptions.Item>
@@ -918,11 +902,11 @@ export const MasterData: React.FC = () => {
               </Descriptions.Item>
 
               <Descriptions.Item label="Created At">
-                <span style={{ fontSize: '11px', color: '#64748b' }}>{detailItem.createdAt || '2026-08-31 10:00:00'}</span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>{formatToIST(detailItem.createdAt) || '—'}</span>
               </Descriptions.Item>
 
               <Descriptions.Item label="Last Modified">
-                <span style={{ fontSize: '11px', color: '#64748b' }}>{detailItem.updatedAt || '2026-08-31 12:00:00'}</span>
+                <span style={{ fontSize: '11px', color: '#64748b' }}>{formatToIST(detailItem.updatedAt || detailItem.createdAt) || '—'}</span>
               </Descriptions.Item>
             </Descriptions>
           </div>
@@ -1168,15 +1152,16 @@ export const MasterData: React.FC = () => {
             </Col>
           </Row>
 
-          {/* Row 2: Product Description */}
+          {/* Row 2: Product Description (Optional) */}
           <Form.Item
             name="productDescription"
-            label="Product Description"
-            rules={[{ required: true, message: 'Product description is required' }]}
+            label="Product Description (Optional)"
+            tooltip="Optional description or details of the finished good item"
+            rules={[]}
           >
             <Input.TextArea 
               rows={2} 
-              placeholder="Orthopaedic Memory Foam Mattress (King - 78x72x8 inch)" 
+              placeholder="e.g. Orthopaedic Memory Foam Mattress (King - 78x72x8 inch) (Optional)" 
             />
           </Form.Item>
 
@@ -1211,9 +1196,9 @@ export const MasterData: React.FC = () => {
             </Col>
           </Row>
 
-          {/* Row 4: Color, Package Type, Status */}
+          {/* Row 4: Color, Status */}
           <Row gutter={16}>
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12}>
               <Form.Item 
                 name="color" 
                 label="Color"
@@ -1223,27 +1208,13 @@ export const MasterData: React.FC = () => {
               </Form.Item>
             </Col>
 
-            <Col xs={24} sm={8}>
-              <Form.Item 
-                name="packageType" 
-                label="Package Type"
-                rules={[{ required: true, message: 'Package type is required' }]}
-              >
-                <Select placeholder="Package Type">
-                  {packageTypes.map(p => (
-                    <Option key={p} value={p}>{p}</Option>
-                  ))}
-                </Select>
-              </Form.Item>
-            </Col>
-
-            <Col xs={24} sm={8}>
+            <Col xs={24} sm={12}>
               <Form.Item 
                 name="status" 
                 label="Status"
                 rules={[{ required: true, message: 'Status is required' }]}
               >
-                <Select placeholder="Status">
+                <Select placeholder="Select Status">
                   <Option value="Active">
                     <Tag color="success" style={{ margin: 0 }}>Active</Tag>
                   </Option>

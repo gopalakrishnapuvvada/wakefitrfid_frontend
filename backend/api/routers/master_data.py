@@ -346,7 +346,6 @@ def create_master_data_item(
         width_mm=width,
         height_mm=height,
         color=payload.color,
-        package_type=payload.package_type,
         status_id=stat_id,
         created_by=payload.created_by or "admin",
         updated_by=payload.created_by or "admin",
@@ -435,8 +434,6 @@ def update_master_data_item(
 
     if payload.color is not None:
         item.color = payload.color
-    if payload.package_type is not None:
-        item.package_type = payload.package_type
 
     item.updated_by = payload.updated_by or "admin"
     item.updated_on = datetime.now(timezone.utc)

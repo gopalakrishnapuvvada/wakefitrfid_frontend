@@ -16,12 +16,12 @@ export function formatToIST(input?: string | Date | number | null): string {
     const trimmed = input.trim();
     if (!trimmed) return '';
 
-    // If already in 'YYYY-MM-DD HH:mm:ss' format
-    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(trimmed)) {
-      return trimmed;
+    // 1. If already formatted as 'YYYY-MM-DD HH:mm:ss' (space-separated naive IST string), return as is to prevent double conversion
+    if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}(:\d{2})?$/.test(trimmed)) {
+      return trimmed.length === 16 ? `${trimmed}:00` : trimmed;
     }
 
-    // If it is just time 'HH:mm:ss', prepend today's IST date
+    // 2. If it is just time 'HH:mm:ss', prepend today's IST date
     if (/^\d{2}:\d{2}:\d{2}$/.test(trimmed)) {
       const today = new Intl.DateTimeFormat('en-CA', {
         timeZone: 'Asia/Kolkata',
@@ -32,7 +32,7 @@ export function formatToIST(input?: string | Date | number | null): string {
       return `${today} ${trimmed}`;
     }
 
-    // If input contains ISO 'T'
+    // 3. If input is ISO string from backend with 'T' (e.g. '2026-10-07T12:07:45Z' or '2026-10-07T12:07:45')
     if (trimmed.includes('T')) {
       const withTz = trimmed.endsWith('Z') || trimmed.includes('+') || (trimmed.length > 19 && trimmed.lastIndexOf('-') > 10)
         ? trimmed

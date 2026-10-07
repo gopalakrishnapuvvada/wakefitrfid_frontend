@@ -200,7 +200,7 @@ export const PrintableLabelPreview: React.FC<PrintableLabelPreviewProps> = ({
                 {label.serialNumber || 'SN-WAK-26083100104'}
               </div>
               <div style={{ fontSize: '9px', color: '#64748b', marginTop: '3px' }}>
-                Package: <strong style={{ color: '#0f172a' }}>{label.packageType || 'Rolled Vacuum Box'}</strong> • QA: <strong style={{ color: '#10B981' }}>VERIFIED</strong>
+                Inspection: <strong style={{ color: '#10B981' }}>VERIFIED (100% QA PASSED)</strong>
               </div>
             </div>
 

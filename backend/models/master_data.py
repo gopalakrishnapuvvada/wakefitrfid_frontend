@@ -78,7 +78,6 @@ class MasterDataItem(Base):
     height_mm: Mapped[Optional[int]] = mapped_column(Integer, nullable=True)
 
     color: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
-    package_type: Mapped[Optional[str]] = mapped_column(String(100), nullable=True)
 
     status_id: Mapped[str] = mapped_column(
         String(50),

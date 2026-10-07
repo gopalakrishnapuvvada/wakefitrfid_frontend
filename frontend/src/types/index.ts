@@ -34,14 +34,13 @@ export interface MasterDataItem {
   partNumber: string;         // Part Number e.g. FG-ORT-KNG-08
   category: string;           // Category e.g. Mattress, Sofa, Recliner
   model: string;              // Model e.g. ShapeSense Ortho Pro
-  productDescription: string; // Product Description
+  productDescription?: string;// Product Description (Optional)
   dimensions: {
     lengthMm: number;
     widthMm: number;
     heightMm: number;
   };
-  color?: string;             // Product Color (e.g. Navy Blue, Classic Grey, Beige)
-  packageType: string;        // Package Type e.g. Rolled Vacuum Box, Corrugated Carton
+  color: string;              // Product Color (e.g. Navy Blue, Classic Grey, Beige)
   status: MasterDataStatus;   // Status: Active, On hold, Inactive
 
   // Optional/compat aliases

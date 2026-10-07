@@ -119,7 +119,6 @@ class MasterDataItemCreate(BaseModel):
     width_mm: Optional[int] = Field(None, alias="widthMm")
     height_mm: Optional[int] = Field(None, alias="heightMm")
     color: Optional[str] = None
-    package_type: Optional[str] = Field(None, alias="packageType")
     status_id: Optional[str] = Field(None, alias="statusId")
     status: Optional[str] = None  # Accepts status name (e.g. "Active") or ID
     created_by: Optional[str] = Field(default="admin", alias="createdBy")
@@ -150,7 +149,6 @@ class MasterDataItemUpdate(BaseModel):
     width_mm: Optional[int] = Field(None, alias="widthMm")
     height_mm: Optional[int] = Field(None, alias="heightMm")
     color: Optional[str] = None
-    package_type: Optional[str] = Field(None, alias="packageType")
     status_id: Optional[str] = Field(None, alias="statusId")
     status: Optional[str] = None
     updated_by: Optional[str] = Field(default="admin", alias="updatedBy")
@@ -182,7 +180,6 @@ class MasterDataItemResponse(BaseModel):
     product_name: Optional[str] = Field(None, alias="productName")
     dimensions: DimensionsSchema
     color: Optional[str] = None
-    package_type: Optional[str] = Field(None, alias="packageType")
     status_id: str = Field(..., alias="statusId")
     status: Optional[str] = None
     created_on: datetime = Field(..., alias="createdOn")
@@ -213,7 +210,6 @@ class MasterDataItemResponse(BaseModel):
 
             prod_name = getattr(data, "model", None) or getattr(data, "product_description", None)
 
-
             raw_imgs = getattr(data, "fg_image", None)
             img_list = normalize_fg_image(raw_imgs)
 
@@ -230,7 +226,6 @@ class MasterDataItemResponse(BaseModel):
                 "product_name": prod_name,
                 "dimensions": dimensions_dict,
                 "color": getattr(data, "color", None),
-                "package_type": data.package_type,
                 "status_id": data.status_id,
                 "status": status_name,
                 "created_on": data.created_on,

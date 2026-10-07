@@ -107,7 +107,7 @@ def migrate_legacy_devices_table() -> None:
 
 
 def migrate_master_data_items_table() -> None:
-    """Migrate master_data_items SQLite table to replace net_weight and gross_weight with color."""
+    """Migrate master_data_items SQLite table to ensure schema matches current model (removes package_type and legacy weight columns, ensures color)."""
     if engine.dialect.name != "sqlite":
         return
 
@@ -117,10 +117,11 @@ def migrate_master_data_items_table() -> None:
             return
 
         col_names = [column[1] for column in columns]
+        has_pkg = "package_type" in col_names
         has_weight = "net_weight" in col_names or "gross_weight" in col_names
         has_color = "color" in col_names
 
-        if not has_weight and has_color:
+        if not has_pkg and not has_weight and has_color:
             return
 
         connection.exec_driver_sql("PRAGMA foreign_keys=OFF")
@@ -141,7 +142,6 @@ def migrate_master_data_items_table() -> None:
                     width_mm INTEGER,
                     height_mm INTEGER,
                     color VARCHAR(100),
-                    package_type VARCHAR(100),
                     status_id VARCHAR(50) NOT NULL,
                     created_on DATETIME NOT NULL,
                     created_by VARCHAR(100),
@@ -158,13 +158,13 @@ def migrate_master_data_items_table() -> None:
                 INSERT INTO master_data_items_migrated (
                     id, fg_image, material_code, part_number, category_id,
                     model, product_description, length_mm, width_mm, height_mm,
-                    color, package_type, status_id, created_on, created_by,
+                    color, status_id, created_on, created_by,
                     updated_on, updated_by
                 )
                 SELECT
                     id, fg_image, material_code, part_number, category_id,
                     model, product_description, length_mm, width_mm, height_mm,
-                    {color_expr}, package_type, status_id, created_on, created_by,
+                    {color_expr}, status_id, created_on, created_by,
                     updated_on, updated_by
                 FROM master_data_items
                 """
