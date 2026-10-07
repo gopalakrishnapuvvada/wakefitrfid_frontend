@@ -32,7 +32,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const valid = standardIds.map(id => {
             const found = parsed.find((r: RoleInfo) => r.id === id);
             const initial = INITIAL_ROLES.find(r => r.id === id)!;
-            return found ? { ...initial, ...found } : initial;
+            return found ? { ...initial, ...found, permissions: initial.permissions } : initial;
           });
           return valid;
         }

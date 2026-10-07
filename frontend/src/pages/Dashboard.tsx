@@ -7,7 +7,6 @@ import {
   Button, 
 } from 'antd';
 import { 
-  WifiOutlined, 
   DatabaseOutlined, 
   FileTextOutlined,
   CheckCircleOutlined,
@@ -21,7 +20,7 @@ interface DashboardProps {
 }
 
 export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
-  const { stats, devices } = useData();
+  const { stats } = useData();
   const { isDark } = useAppTheme();
 
   return (

@@ -30,6 +30,7 @@ const MainRouter: React.FC = () => {
 
   const isOperator = currentRole.id === 'operator';
   const isAdmin = currentRole.id === 'admin';
+  const canValidate = currentRole.permissions.canValidateProducts;
 
   const renderActivePage = () => {
     if (isOperator) {
@@ -40,7 +41,7 @@ const MainRouter: React.FC = () => {
       case 'dashboard':
         return <Dashboard onNavigate={setActiveMenuKey} />;
       case 'product-validation':
-        return <ProductValidation />;
+        return canValidate ? <ProductValidation /> : <Dashboard onNavigate={setActiveMenuKey} />;
       case 'label-generation':
         return <LabelGeneration />;
       case 'history':

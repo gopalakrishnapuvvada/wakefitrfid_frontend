@@ -39,6 +39,7 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
   const { isDark } = useAppTheme();
   const isOperator = currentRole.id === 'operator';
   const isAdmin = currentRole.id === 'admin';
+  const canValidate = currentRole.permissions.canValidateProducts;
 
   const baseMenuItems = [
     {
@@ -46,11 +47,11 @@ export const SidebarMenu: React.FC<SidebarMenuProps> = ({
       icon: <DashboardOutlined style={{ fontSize: '16px' }} />,
       label: 'Dashboard',
     },
-    {
+    ...(canValidate ? [{
       key: 'product-validation',
       icon: <ScanOutlined style={{ fontSize: '16px' }} />,
       label: 'Product Validation',
-    },
+    }] : []),
     {
       key: 'label-generation',
       icon: <PrinterOutlined style={{ fontSize: '16px' }} />,
