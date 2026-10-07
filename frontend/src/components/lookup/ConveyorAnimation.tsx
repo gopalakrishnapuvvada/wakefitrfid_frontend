@@ -1,11 +1,10 @@
 import React from 'react';
-import { Tag, Select, Button, Tooltip } from 'antd';
+import { Tag, Button } from 'antd';
 import { 
   WifiOutlined, 
   CheckCircleFilled, 
   RadarChartOutlined, 
   BarcodeOutlined,
-  ClockCircleOutlined 
 } from '@ant-design/icons';
 import { useAppTheme } from '../../context/ThemeContext';
 import type { MasterDataItem } from '../../types';
@@ -16,20 +15,14 @@ interface ConveyorAnimationProps {
   currentProduct: MasterDataItem;
   rfidTag: string;
   scanPhase: SickScanPhase;
-  countdown?: number;
-  displayDuration?: number;
   onResetToStandby?: () => void;
-  onChangeDuration?: (seconds: number) => void;
 }
 
 export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
   currentProduct,
   rfidTag,
   scanPhase,
-  countdown,
-  displayDuration,
   onResetToStandby,
-  onChangeDuration,
 }) => {
   const { isDark } = useAppTheme();
   const isDetected = scanPhase === 'reading_success';
@@ -120,33 +113,8 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
           </span>
         </div>
 
-        {/* Status Mode Badge & Duration Controls */}
+        {/* Status Mode Badge & Standby Controls */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
-          {/* Duration Selector */}
-          {onChangeDuration && displayDuration !== undefined && (
-            <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-              <Tooltip title="Configure how long scanned carton details remain visible before returning to standby">
-                <span style={{ fontSize: '11px', color: '#94a3b8', display: 'flex', alignItems: 'center', gap: '4px' }}>
-                  <ClockCircleOutlined style={{ color: '#38bdf8' }} /> Hold Time:
-                </span>
-              </Tooltip>
-              <Select
-                size="small"
-                value={displayDuration}
-                onChange={onChangeDuration}
-                style={{ width: 135 }}
-                options={[
-                  { value: 10, label: '10 Seconds' },
-                  { value: 15, label: '15 Seconds' },
-                  { value: 20, label: '20 Seconds' },
-                  { value: 30, label: '30 Seconds' },
-                  { value: 60, label: '60 Seconds' },
-                  { value: 0, label: 'Until Next Scan' },
-                ]}
-              />
-            </div>
-          )}
-
           {/* Mode Badge */}
           <div
             style={{
@@ -171,23 +139,7 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
                 animation: isDetected ? 'sickOrangeBlink 0.35s infinite' : 'none',
               }}
             />
-            {isDetected ? (
-              <span>
-                ORANGE BLINKING (FG DETECTED)
-                {countdown !== undefined && countdown > 0 && (
-                  <span style={{ marginLeft: '6px', color: '#fed7aa', fontWeight: 700 }}>
-                    ({countdown}s remaining)
-                  </span>
-                )}
-                {displayDuration === 0 && (
-                  <span style={{ marginLeft: '6px', color: '#38bdf8', fontWeight: 700 }}>
-                    (HOLD)
-                  </span>
-                )}
-              </span>
-            ) : (
-              'GREEN STEADY (NO FG DETECTED)'
-            )}
+            {isDetected ? 'ORANGE BLINKING (FG DETECTED)' : 'GREEN STEADY (NO FG DETECTED)'}
           </div>
 
           {/* Standby Now Button */}
@@ -428,16 +380,6 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
                   <Tag color="orange" style={{ fontWeight: 800, margin: 0, fontSize: '11px', animation: 'sickOrangeBlink 0.35s infinite' }}>
                     <CheckCircleFilled /> FG DETECTED
                   </Tag>
-                  {countdown !== undefined && countdown > 0 && (
-                    <Tag color="volcano" style={{ fontWeight: 700, margin: 0, fontSize: '11px' }}>
-                      <ClockCircleOutlined /> Active ({countdown}s)
-                    </Tag>
-                  )}
-                  {displayDuration === 0 && (
-                    <Tag color="blue" style={{ fontWeight: 700, margin: 0, fontSize: '11px' }}>
-                      Hold Until Next Scan
-                    </Tag>
-                  )}
                   <Tag color="#E53935" style={{ fontWeight: 700, margin: 0, fontSize: '11px', fontFamily: 'monospace' }}>
                     {currentProduct?.materialCode || 'WAK-MAT-787208'}
                   </Tag>

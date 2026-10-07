@@ -19,7 +19,6 @@ import {
   HistoryOutlined,
   ExportOutlined,
   SearchOutlined,
-  DeleteOutlined
 } from '@ant-design/icons';
 import confetti from 'canvas-confetti';
 import { useData } from '../context/DataContext';
@@ -33,7 +32,6 @@ const { Option } = Select;
 
 const DISPATCH_READS_KEY = 'wakefit_recent_conveyor_reads_v3';
 const LAST_FIXED_SCAN_KEY = 'wakefit_last_fixed_rfid_scan_v3';
-const DISPLAY_DURATION_KEY = 'wakefit_label_lookup_display_duration_v1';
 
 interface RecentConveyorRead {
   id: string;
@@ -181,21 +179,6 @@ export const LabelGeneration: React.FC = () => {
     });
   }, [marriedTransactions, handleResetToStandby]);
 
-  // Clear all dispatch records and reset SICK portal buffer
-  const handleClearDispatchRecords = async () => {
-    setRecentReads([]);
-    handleResetToStandby();
-    try {
-      localStorage.removeItem(DISPATCH_READS_KEY);
-      localStorage.removeItem(LAST_FIXED_SCAN_KEY);
-      await TransactionsApi.clearFixedRfid();
-      await refreshTransactions();
-    } catch (err) {
-      console.warn('Failed to clear fixed rfid buffer:', err);
-    }
-    message.success('Dispatch records and scan buffer cleared.');
-  };
-
   // Keep last scan details saved in localStorage if active
   useEffect(() => {
     if (activeTransactionId && activeRfidTag) {
@@ -217,60 +200,6 @@ export const LabelGeneration: React.FC = () => {
 
   // Copy success indicator states
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
-
-  // Configurable display duration (seconds): 10, 15, 20, 30, 60, or 0 (hold indefinitely)
-  // Default is increased from 2s to 15s for comfortable human inspection
-  const [displayDuration, setDisplayDuration] = useState<number>(() => {
-    try {
-      const saved = localStorage.getItem(DISPLAY_DURATION_KEY);
-      return saved !== null ? parseInt(saved, 10) : 15;
-    } catch {
-      return 15;
-    }
-  });
-
-  const [remainingSeconds, setRemainingSeconds] = useState<number>(15);
-
-  const handleDurationChange = (seconds: number) => {
-    setDisplayDuration(seconds);
-    try {
-      localStorage.setItem(DISPLAY_DURATION_KEY, String(seconds));
-    } catch {
-      // ignore
-    }
-    if (scanPhase === 'reading_success') {
-      setRemainingSeconds(seconds);
-    }
-  };
-
-  // Standby auto-reset effect: After detection, maintain scanner UI display for configured duration (default 15 seconds)
-  useEffect(() => {
-    if (scanPhase === 'reading_success') {
-      if (displayDuration <= 0) {
-        return; // 0 = Hold indefinitely until next scan
-      }
-
-      setRemainingSeconds(displayDuration);
-      const interval = setInterval(() => {
-        setRemainingSeconds(prev => {
-          if (prev <= 1) {
-            clearInterval(interval);
-            setScanPhase('idle');
-            // When SICK reader section disappears, Live Traceability & Coupled Product Identifiers parallely clears / becomes empty
-            setActiveTransactionId(null);
-            setActiveRfidTag(null);
-            setActiveWorkOrder(null);
-            setActiveMaterialCode(null);
-            setActivePartNumber(null);
-            return 0;
-          }
-          return prev - 1;
-        });
-      }, 1000);
-
-      return () => clearInterval(interval);
-    }
-  }, [scanPhase, displayDuration]);
 
   // Buffer tracking for continuous SICK RFU630 fixed RFID reader listener
   const lastProcessedFixedScanIdRef = useRef<string | null>(null);
@@ -301,7 +230,6 @@ export const LabelGeneration: React.FC = () => {
 
           // 1. SICK RFID Portal detection animation: Orange blink as box passes under antenna
           setScanPhase('reading_success');
-          setRemainingSeconds(displayDuration);
 
           // 2. Update Live Traceability & Coupled Product Identifiers tiles
           setActiveTransactionId(pending.transactionId);
@@ -475,10 +403,7 @@ Read Timestamp: ${new Date().toISOString()}
         currentProduct={currentProduct}
         rfidTag={activeRfidTag || ''}
         scanPhase={scanPhase}
-        countdown={remainingSeconds}
-        displayDuration={displayDuration}
         onResetToStandby={handleResetToStandby}
-        onChangeDuration={handleDurationChange}
       />
 
       {/* 3. Five Key Copyable Traceability Data Fields */}
