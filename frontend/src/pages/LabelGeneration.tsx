@@ -31,7 +31,7 @@ import { formatToIST } from '../utils/dateUtils';
 const { Option } = Select;
 
 const DISPATCH_READS_KEY = 'wakefit_recent_conveyor_reads_v3';
-const LAST_FIXED_SCAN_KEY = 'wakefit_last_fixed_rfid_scan_v3';
+const AUTO_RESET_HOLD_MS = 5000; // Hold detection display for 5 seconds, then return to Green Steady (Standby)
 
 interface RecentConveyorRead {
   id: string;
@@ -62,23 +62,11 @@ export const LabelGeneration: React.FC = () => {
     );
   }, [devices]);
 
-  // Restore latest scan state or defaults from localStorage
-  const savedLastScan = useMemo(() => {
-    try {
-      const s = localStorage.getItem(LAST_FIXED_SCAN_KEY);
-      return s ? JSON.parse(s) : null;
-    } catch {
-      return null;
-    }
-  }, []);
-
-  // Active SKU on the conveyor (Persisted across refreshes)
-  const [selectedSkuIndex, setSelectedSkuIndex] = useState<number>(() => {
-    return savedLastScan?.selectedSkuIndex ?? 0;
-  });
+  // Active SKU on the conveyor
+  const [selectedSkuIndex, setSelectedSkuIndex] = useState<number>(0);
   const currentProduct: MasterDataItem = masterData[selectedSkuIndex] || masterData[0];
 
-  // Scan Lifecycle State
+  // Scan Lifecycle State - Standby by default (idle)
   const [scanPhase, setScanPhase] = useState<SickScanPhase>('idle');
 
   // Active Read RFID & Traceability States (Initialized empty until a SICK scan occurs)
@@ -145,7 +133,7 @@ export const LabelGeneration: React.FC = () => {
       handleResetToStandby();
       try {
         localStorage.removeItem(DISPATCH_READS_KEY);
-        localStorage.removeItem(LAST_FIXED_SCAN_KEY);
+        localStorage.removeItem('wakefit_last_fixed_rfid_scan_v3');
       } catch {
         // ignore
       }
@@ -191,30 +179,22 @@ export const LabelGeneration: React.FC = () => {
     });
   }, [marriedTransactions, handleResetToStandby]);
 
-  // Keep last scan details saved in localStorage if active
+  // Clean any stale legacy scan cache on component mount
   useEffect(() => {
-    if (activeTransactionId && activeRfidTag) {
-      try {
-        localStorage.setItem(
-          LAST_FIXED_SCAN_KEY,
-          JSON.stringify({
-            transactionId: activeTransactionId,
-            rfidTag: activeRfidTag,
-            workOrderNo: activeWorkOrder,
-            selectedSkuIndex,
-          })
-        );
-      } catch {
-        // ignore
-      }
+    try {
+      localStorage.removeItem('wakefit_last_fixed_rfid_scan_v3');
+      localStorage.removeItem('wakefit_last_fixed_rfid_scan');
+    } catch {
+      // ignore
     }
-  }, [activeTransactionId, activeRfidTag, activeWorkOrder, selectedSkuIndex]);
+  }, []);
 
   // Copy success indicator states
   const [copiedKey, setCopiedKey] = useState<string | null>(null);
 
   // Buffer tracking for continuous SICK RFU630 fixed RFID reader listener
   const lastProcessedFixedScanIdRef = useRef<string | null>(null);
+  const autoResetTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Continuous SICK RFU630 RFID Portal Listener (Polls pending fixed scans)
   useEffect(() => {
@@ -251,13 +231,11 @@ export const LabelGeneration: React.FC = () => {
           setActivePartNumber(pending.partNumber || '');
 
           // Find matching Master Data item and update active SKU
-          let newSkuIdx = selectedSkuIndex;
           const matchedIdx = masterData.findIndex(
             m => m.materialCode.toUpperCase() === (pending.materialCode || '').toUpperCase()
           );
           if (matchedIdx >= 0) {
             setSelectedSkuIndex(matchedIdx);
-            newSkuIdx = matchedIdx;
           }
 
           // Format full IST date & time: 'YYYY-MM-DD HH:mm:ss'
@@ -290,21 +268,6 @@ export const LabelGeneration: React.FC = () => {
             return next;
           });
 
-          // Save last scan key to localStorage immediately
-          try {
-            localStorage.setItem(
-              LAST_FIXED_SCAN_KEY,
-              JSON.stringify({
-                transactionId: pending.transactionId,
-                rfidTag: pending.rfidUniqueId,
-                workOrderNo: pending.workOrderNo,
-                selectedSkuIndex: newSkuIdx,
-              })
-            );
-          } catch {
-            // ignore
-          }
-
           // 4. Confetti and toast notification
           confetti({
             particleCount: 30,
@@ -334,6 +297,14 @@ export const LabelGeneration: React.FC = () => {
           } catch {
             // ignore clear error
           }
+
+          // 7. Auto-reset timer: Hold scan detection for 5 seconds, then return to Green Steady (Standby)
+          if (autoResetTimerRef.current) {
+            clearTimeout(autoResetTimerRef.current);
+          }
+          autoResetTimerRef.current = setTimeout(() => {
+            handleResetToStandby();
+          }, AUTO_RESET_HOLD_MS);
         }
       } catch {
         // quiet continuous listener polling
@@ -345,8 +316,11 @@ export const LabelGeneration: React.FC = () => {
     return () => {
       isSubscribed = false;
       clearInterval(interval);
+      if (autoResetTimerRef.current) {
+        clearTimeout(autoResetTimerRef.current);
+      }
     };
-  }, [masterData, selectedSkuIndex, updateTransactionStatus]);
+  }, [masterData, updateTransactionStatus, handleResetToStandby]);
 
   // Search filter for bottom transaction records table
   const [tableSearchText, setTableSearchText] = useState<string>('');
