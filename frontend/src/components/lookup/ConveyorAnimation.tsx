@@ -341,17 +341,6 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
             </div>
           </div>
 
-          {/* Reader Protocol Summary */}
-          <div style={{ fontSize: '11px', color: '#94a3b8', borderTop: '1px solid rgba(255,255,255,0.06)', paddingTop: '8px' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-              <span>Frequency:</span>
-              <strong style={{ color: '#f8fafc' }}>865-868 MHz (EU/IN)</strong>
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '2px' }}>
-              <span>Continuous Read Rate:</span>
-              <strong style={{ color: '#38bdf8' }}>Autonomous Poll</strong>
-            </div>
-          </div>
         </div>
 
         {/* Right Column: Active Detection Zone & Live FG View */}

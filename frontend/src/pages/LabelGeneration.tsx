@@ -812,7 +812,7 @@ Read Timestamp: ${new Date().toISOString()}
                 style={{ width: 320, minWidth: 220 }}
                 size="small"
               />
-              <Button
+              {/* <Button
                 size="small"
                 danger
                 icon={<DeleteOutlined />}
@@ -820,7 +820,7 @@ Read Timestamp: ${new Date().toISOString()}
                 disabled={recentReads.length === 0}
               >
                 Clear Dispatches
-              </Button>
+              </Button> */}
               <Tag color="cyan" style={{ fontWeight: 700, borderRadius: '4px', margin: 0 }}>
                 LIVE BUFFER
               </Tag>
