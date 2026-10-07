@@ -7,7 +7,7 @@ import {
   BarcodeOutlined,
 } from '@ant-design/icons';
 import { useAppTheme } from '../../context/ThemeContext';
-import type { MasterDataItem } from '../../types';
+import type { DeviceItem, MasterDataItem } from '../../types';
 
 export type SickScanPhase = 'idle' | 'conveyor_moving' | 'reading_success' | 'completed';
 
@@ -16,6 +16,7 @@ interface ConveyorAnimationProps {
   rfidTag: string;
   scanPhase: SickScanPhase;
   onResetToStandby?: () => void;
+  fixedDevice?: DeviceItem | null;
 }
 
 export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
@@ -23,6 +24,7 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
   rfidTag,
   scanPhase,
   onResetToStandby,
+  fixedDevice,
 }) => {
   const { isDark } = useAppTheme();
   const isDetected = scanPhase === 'reading_success';
@@ -109,8 +111,17 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
             }}
           />
           <span style={{ fontWeight: 800, fontSize: '14px', letterSpacing: '0.5px', color: '#f8fafc' }}>
-            SICK RFU630-13100 FIXED RFID READER
+            {fixedDevice?.displayName || fixedDevice?.name || 'SICK RFU630 FIXED RFID READER'}
           </span>
+          {fixedDevice?.ipAddress ? (
+            <Tag color="cyan" style={{ fontWeight: 700, borderRadius: '6px', fontSize: '11px', margin: 0, fontFamily: 'monospace' }}>
+              IP: {fixedDevice.ipAddress}{fixedDevice.port ? `:${fixedDevice.port}` : ''}
+            </Tag>
+          ) : (
+            <Tag color="default" style={{ fontWeight: 600, borderRadius: '6px', fontSize: '11px', margin: 0 }}>
+              IP: Auto-Discovered
+            </Tag>
+          )}
         </div>
 
         {/* Status Mode Badge & Standby Controls */}
@@ -208,8 +219,8 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
               <span style={{ fontSize: '11px', fontWeight: 700, color: '#94a3b8', letterSpacing: '0.8px' }}>
                 DEVICE HARDWARE
               </span>
-              <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#38bdf8' }}>
-                IP: 192.168.1.140
+              <span style={{ fontSize: '10px', fontFamily: 'monospace', color: '#38bdf8', fontWeight: 700 }}>
+                {fixedDevice?.ipAddress ? `IP: ${fixedDevice.ipAddress}${fixedDevice.port ? `:${fixedDevice.port}` : ''}` : 'IP: Device Not found'}
               </span>
             </div>
 
@@ -234,10 +245,10 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
                 <WifiOutlined style={{ fontSize: '20px', color: isDetected ? '#F97316' : '#10B981' }} />
                 <div>
                   <div style={{ fontSize: '12px', fontWeight: 900, color: '#ffffff', letterSpacing: '0.5px' }}>
-                    SICK RFU630
+                    {fixedDevice?.displayName || fixedDevice?.name || 'SICK RFU630'}
                   </div>
                   <div style={{ fontSize: '10px', color: '#94a3b8' }}>
-                    UHF RFID Port 1
+                    {fixedDevice?.make ? `${fixedDevice.make} Fixed RFID` : 'Fixed RFID Scanner'}
                   </div>
                 </div>
               </div>
@@ -455,10 +466,10 @@ export const ConveyorAnimation: React.FC<ConveyorAnimationProps> = ({
                 <RadarChartOutlined />
               </div>
               <div style={{ fontSize: '13px', fontWeight: 800, color: '#f8fafc', marginBottom: '2px' }}>
-                SICK RFID Portal Listening in Continuous Scan Mode
+                {fixedDevice?.displayName || fixedDevice?.name || 'Fixed RFID Reader'} Listening in Continuous Scan Mode
               </div>
-              <div style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '420px' }}>
-                <span style={{ color: '#10B981', fontWeight: 700 }}>Green Steady:</span> No Finished Good currently in reader antenna field. Ready for passing tags.
+              <div style={{ fontSize: '11px', color: '#94a3b8', maxWidth: '460px' }}>
+                <span style={{ color: '#10B981', fontWeight: 700 }}>Green Steady:</span> No Finished Good currently in reader antenna field {fixedDevice?.ipAddress ? `(${fixedDevice.ipAddress})` : ''}. Ready for passing tags.
               </div>
             </div>
           )}

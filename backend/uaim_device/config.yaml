@@ -13,11 +13,11 @@ webhook:
   payload_field: "rfidUniqueId"   # Sends: {"rfidUniqueId": "E2801191A50400738D618D4E"}
 
 devices:
-  # 1. SICK RFU630 Fixed UHF RFID Reader (Network TCP/IP)
+  # 1. Fixed UHF RFID Reader (Configured dynamically via Device Management UI)
   - device_id: RFID-001
     name: Pallet Gate SICK RFU630
     adapter: sick_rfu630
-    host: 192.168.1.246
+    host: 0.0.0.0
     port: 2112
     station_id: PALLET-GATE-01
 

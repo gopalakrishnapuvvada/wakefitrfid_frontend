@@ -90,7 +90,18 @@ WEB_DIR = resolve_web_dir()
 
 
 def load_config_file(config_path: Optional[str] = None) -> list[dict]:
-    """Load devices configuration from YAML file or return defaults."""
+    """Load devices configuration from SQLite DB first, then YAML file, or return dynamic defaults."""
+    # 1. Try loading from SQLite Database Device Management
+    try:
+        from uaim_device.service import load_devices_from_database
+        db_devices = load_devices_from_database()
+        if db_devices:
+            logger.info(f"Loaded {len(db_devices)} devices from SQLite devices table.")
+            return db_devices
+    except Exception as db_err:
+        logger.warning(f"Could not load devices from database: {db_err}")
+
+    # 2. Try loading from YAML config file
     p = find_config_file(config_path)
     if p and p.exists():
         try:
@@ -103,17 +114,17 @@ def load_config_file(config_path: Optional[str] = None) -> list[dict]:
         except Exception as e:
             logger.warning(f"Failed to read {p}: {e}, using built-in defaults.")
 
-    logger.info("Using built-in default device configurations.")
+    logger.info("Using dynamic default device configurations.")
     return [
         {
             "device_id": "RFID-001",
-            "name": "Pallet Gate SICK RFU630",
+            "name": "Fixed RFID Scanner",
             "type": "RFID_FIXED",
             "adapter": "sick_rfu630",
             "vendor": "SICK",
             "model": "RFU630",
             "connection_type": "ETHERNET",
-            "host": "192.168.1.246",
+            "host": None,
             "port": 2112,
             "station_id": "PALLET-GATE-01",
             "enabled": True,
@@ -123,7 +134,7 @@ def load_config_file(config_path: Optional[str] = None) -> list[dict]:
         },
         {
             "device_id": "HH-001",
-            "name": "CipherLab RS38 Handheld Computer",
+            "name": "CipherLab RS38 Handheld Scanner",
             "type": "RFID_HANDHELD",
             "adapter": "handheld",
             "vendor": "CipherLab",

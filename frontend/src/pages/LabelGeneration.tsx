@@ -47,8 +47,20 @@ interface RecentConveyorRead {
 }
 
 export const LabelGeneration: React.FC = () => {
-  const { masterData, updateTransactionStatus, marriedTransactions, refreshTransactions } = useData();
+  const { masterData, updateTransactionStatus, marriedTransactions, refreshTransactions, devices } = useData();
   const { isDark } = useAppTheme();
+
+  // Find dynamically registered Fixed RFID Scanner from Device Management
+  const fixedScanner = useMemo(() => {
+    return (
+      (devices || []).find(
+        d =>
+          d.deviceType === 'Fixed RFID Scanner' ||
+          (d.deviceType && d.deviceType.toLowerCase().includes('fixed')) ||
+          (d.name && d.name.toLowerCase().includes('fixed'))
+      ) || null
+    );
+  }, [devices]);
 
   // Restore latest scan state or defaults from localStorage
   const savedLastScan = useMemo(() => {
@@ -377,6 +389,10 @@ export const LabelGeneration: React.FC = () => {
       message.info('No active scanned data to copy. Please wait for an RFID scan.');
       return;
     }
+    const scannerDesc = fixedScanner
+      ? `${fixedScanner.displayName || fixedScanner.name} (IP: ${fixedScanner.ipAddress || 'Auto'}${fixedScanner.port ? `:${fixedScanner.port}` : ''})`
+      : 'Fixed RFID Reader';
+
     const payload = `=== WAKEFIT FG TRACEABILITY DATA ===
 Transaction ID: ${activeTransactionId || 'N/A'}
 RFID Tag No:    ${activeRfidTag || 'N/A'}
@@ -388,7 +404,7 @@ Category:       ${currentProduct.category}
 Dimensions:     ${currentProduct.dimensions.lengthMm} x ${currentProduct.dimensions.widthMm} x ${currentProduct.dimensions.heightMm} mm
 Color:          ${currentProduct.color || 'Standard'}
 Batch Number:   ${activeBatch}
-Scanner Device: SICK RFU630-13100 Fixed RFID Reader
+Scanner Device: ${scannerDesc}
 Read Timestamp: ${new Date().toISOString()}
 =====================================`;
 
@@ -404,6 +420,7 @@ Read Timestamp: ${new Date().toISOString()}
         rfidTag={activeRfidTag || ''}
         scanPhase={scanPhase}
         onResetToStandby={handleResetToStandby}
+        fixedDevice={fixedScanner}
       />
 
       {/* 3. Five Key Copyable Traceability Data Fields */}

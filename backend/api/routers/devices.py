@@ -230,6 +230,12 @@ def register_and_authorize_device(
     db.commit()
     db.refresh(new_device)
 
+    try:
+        from uaim_device.service import sync_device_adapters
+        sync_device_adapters()
+    except Exception:
+        pass
+
     return DeviceAuthorizeResponse(
         authorized=True,
         status="authorized",
@@ -323,6 +329,13 @@ def post_devices_data(
     db.add(device)
     db.commit()
     db.refresh(device)
+
+    try:
+        from uaim_device.service import sync_device_adapters
+        sync_device_adapters()
+    except Exception:
+        pass
+
     return device
 
 
@@ -393,6 +406,13 @@ def update_devices_data(
     device.updated_by = payload.updated_by or 'admin'
     db.commit()
     db.refresh(device)
+
+    try:
+        from uaim_device.service import sync_device_adapters
+        sync_device_adapters()
+    except Exception:
+        pass
+
     return device
 
 
@@ -417,6 +437,13 @@ def delete_device(
 
     db.delete(device)
     db.commit()
+
+    try:
+        from uaim_device.service import sync_device_adapters
+        sync_device_adapters()
+    except Exception:
+        pass
+
     return {'success': True, 'message': f"Device '{device_id}' deleted successfully."}
 
 
