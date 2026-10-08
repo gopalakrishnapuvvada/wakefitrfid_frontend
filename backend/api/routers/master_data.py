@@ -225,12 +225,13 @@ def update_roles_password_endpoint(
 @router.get("/get_devices_data", response_model=List[DeviceResponse])
 def get_devices_data_endpoint(
     db: Session = Depends(get_db),
+    device_type: Optional[str] = None,
     search: Optional[str] = None,
-    skip: int = Query(0, ge=0),
-    limit: int = Query(100, ge=1, le=500),
+    skip: int = 0,
+    limit: int = 100,
 ):
     from api.routers.devices import get_devices_data
-    return get_devices_data(db, search, skip, limit)
+    return get_devices_data(db=db, device_type=device_type, search=search, skip=skip, limit=limit)
 
 
 @router.post("/post_devices_data", response_model=DeviceResponse, status_code=status.HTTP_201_CREATED)

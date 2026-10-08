@@ -81,13 +81,22 @@ def get_devices_data(
     skip: int = Query(0, ge=0),
     limit: int = Query(100, ge=1, le=500),
 ):
+    try:
+        skip_val = int(skip) if not str(type(skip)).endswith("params.Query'>") else 0
+    except (TypeError, ValueError):
+        skip_val = 0
+
+    try:
+        limit_val = int(limit) if not str(type(limit)).endswith("params.Query'>") else 100
+    except (TypeError, ValueError):
+        limit_val = 100
     query = db.query(Device)
 
-    if device_type:
+    if device_type and isinstance(device_type, str):
         d_type = device_type.strip()
         query = query.filter(Device.device_type.ilike(f"%{d_type}%"))
 
-    if search:
+    if search and isinstance(search, str):
         term = f"%{search.strip()}%"
         query = query.filter(
             or_(
@@ -98,7 +107,7 @@ def get_devices_data(
             )
         )
 
-    return query.order_by(Device.created_on.desc()).offset(skip).limit(limit).all()
+    return query.order_by(Device.created_on.desc()).offset(skip_val).limit(limit_val).all()
 
 
 @router.get('/verify_handheld_name')

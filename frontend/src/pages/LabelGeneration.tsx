@@ -47,7 +47,7 @@ interface RecentConveyorRead {
 }
 
 export const LabelGeneration: React.FC = () => {
-  const { masterData, updateTransactionStatus, marriedTransactions, refreshTransactions, devices } = useData();
+  const { masterData, updateTransactionStatus, refreshTransactions, devices } = useData();
   const { isDark } = useAppTheme();
 
   // Find dynamically registered Fixed RFID Scanner from Device Management
@@ -122,62 +122,6 @@ export const LabelGeneration: React.FC = () => {
     refreshTransactions();
   }, [refreshTransactions]);
 
-  // Synchronize dispatched transactions from DataContext (backed by SQLite DB) into recentReads
-  useEffect(() => {
-    const dispatchedTxns = (marriedTransactions || []).filter(
-      t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch'
-    );
-
-    if (dispatchedTxns.length === 0) {
-      setRecentReads([]);
-      handleResetToStandby();
-      try {
-        localStorage.removeItem(DISPATCH_READS_KEY);
-        localStorage.removeItem('wakefit_last_fixed_rfid_scan_v3');
-      } catch {
-        // ignore
-      }
-      return;
-    }
-
-    setRecentReads(prev => {
-      let updated = [...prev];
-      let hasChange = false;
-
-      for (const dt of dispatchedTxns) {
-        const existingIdx = updated.findIndex(
-          r => r.transactionId === dt.transactionId || r.rfidTag === dt.rfidUniqueId
-        );
-        const dtTimestamp = formatToIST(
-          dt.dispatchScanTimestamp || dt.timestamp || (dt as any).createdOn || (dt as any).productValidationTimestamp || new Date()
-        );
-        const readItem: RecentConveyorRead = {
-          id: existingIdx >= 0 ? updated[existingIdx].id : `READ-${dt.transactionId}`,
-          timestamp: dtTimestamp,
-          transactionId: dt.transactionId,
-          rfidTag: dt.rfidUniqueId,
-          materialCode: dt.materialCode,
-          partNumber: dt.partNumber || '',
-          workOrderNo: dt.workOrderNo || '',
-          productName: dt.productName || 'Finished Good',
-          status: 'Dispatch',
-          antenna: 'Port 1 (Overhead)',
-        };
-
-        if (existingIdx >= 0) {
-          if (updated[existingIdx].status !== 'Dispatch' || updated[existingIdx].timestamp !== dtTimestamp) {
-            updated[existingIdx] = { ...updated[existingIdx], ...readItem };
-            hasChange = true;
-          }
-        } else {
-          updated = [readItem, ...updated];
-          hasChange = true;
-        }
-      }
-
-      return hasChange ? updated : prev;
-    });
-  }, [marriedTransactions, handleResetToStandby]);
 
   // Clean any stale legacy scan cache on component mount
   useEffect(() => {

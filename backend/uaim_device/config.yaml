@@ -5,9 +5,9 @@ server:
   host: 0.0.0.0
   port: 8001
 
-# Webhook Forwarder: Automatically POSTs RFID tag to your backend server the instant it is scanned
+# Webhook Forwarder: Disabled because DirectDbConsumer handles in-memory processing directly
 webhook:
-  enabled: true
+  enabled: false
   url: "http://127.0.0.1:8000/post_fixed_rfid"
   only_tag: true
   payload_field: "rfidUniqueId"   # Sends: {"rfidUniqueId": "E2801191A50400738D618D4E"}
