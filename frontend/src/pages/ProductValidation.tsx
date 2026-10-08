@@ -4,7 +4,6 @@ import {
   Table, 
   Tag, 
   message, 
-  Image, 
   Input, 
   Tooltip,
   Modal 
@@ -843,54 +842,14 @@ export const ProductValidation: React.FC = () => {
           dataSource={filteredMarried}
           rowKey="id"
           pagination={false}
+          size="middle"
+          scroll={{ x: 1100 }}
           columns={[
-            {
-              title: 'FG Image',
-              key: 'img',
-              width: 70,
-              align: 'center',
-              render: (_, r) => {
-                const catalogItem = masterData.find(
-                  m => m.materialCode.toUpperCase() === (r.materialCode || '').toUpperCase()
-                );
-                const catalogImg = Array.isArray(catalogItem?.fgImage)
-                  ? catalogItem.fgImage[0]
-                  : (typeof catalogItem?.fgImage === 'string' && catalogItem.fgImage !== 'string' ? catalogItem.fgImage : null);
-                const imgSrc =
-                  r.productImage ||
-                  catalogImg ||
-                  getProductImageByMaterial(r.materialCode, r.category);
-
-                return (
-                  <div style={{ display: 'flex', justifyContent: 'center' }}>
-                    <Image
-                      src={imgSrc}
-                      alt={r.productName}
-                      width={48}
-                      height={36}
-                      style={{ objectFit: 'cover', borderRadius: '4px', border: '1px solid #e2e8f0' }}
-                      fallback="/products/mattress_1.jpg"
-                    />
-                  </div>
-                );
-              },
-            },
             {
               title: 'Transaction ID',
               dataIndex: 'transactionId',
               key: 'transactionId',
               render: (id: string) => <strong style={{ color: '#E53935', fontFamily: 'monospace' }}>{id}</strong>,
-              width: 160,
-            },
-            {
-              title: 'Timestamp (IST)',
-              dataIndex: 'timestamp',
-              key: 'timestamp',
-              render: (t: string, r: any) => (
-                <span style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>
-                  {formatToIST(t || r.timestamp || r.createdOn || r.productValidationTimestamp)}
-                </span>
-              ),
               width: 170,
             },
             {
@@ -908,48 +867,87 @@ export const ProductValidation: React.FC = () => {
               title: 'Work Order No. (WO)',
               dataIndex: 'workOrderNo',
               key: 'wo',
-              render: (wo: string) => <Tag color="purple" style={{ fontFamily: 'monospace' }}>{wo}</Tag>,
-              width: 170,
+              render: (wo: string) => <Tag color="purple" style={{ fontFamily: 'monospace', margin: 0 }}>{wo}</Tag>,
+              width: 160,
             },
             {
               title: 'Material Code',
               dataIndex: 'materialCode',
               key: 'mat',
               render: (mat: string) => <strong style={{ color: '#E53935', fontFamily: 'monospace' }}>{mat}</strong>,
-              width: 160,
+              width: 150,
             },
             {
               title: 'Scanner Device',
               dataIndex: 'deviceName',
               key: 'device',
-              render: (d: string) => <span style={{ fontSize: '12px' }}>{d}</span>,
+              render: (d: string) => (
+                <span style={{ fontSize: '12px', fontWeight: 600, color: isDark ? '#cbd5e1' : '#334155' }}>
+                  {d || 'CIPHERLAB RS38'}
+                </span>
+              ),
+              width: 180,
             },
             {
-              title: 'State',
+              title: 'Status',
               dataIndex: 'status',
               key: 'status',
-              width: 130,
+              width: 120,
               align: 'center',
-              render: () => (
-                <Tooltip title="System State: Work In Progress (Packaged & Married at Line)">
-                  <Tag
-                    color="warning"
-                    style={{
-                      margin: 0,
-                      fontWeight: 800,
-                      fontSize: '11px',
-                      borderRadius: '12px',
-                      padding: '2px 10px',
-                      display: 'inline-flex',
-                      alignItems: 'center',
-                      gap: '4px',
-                    }}
-                  >
-                    <ClockCircleOutlined />
-                    WIP
-                  </Tag>
-                </Tooltip>
+              render: (st: string) => {
+                const isDispatched = st === 'Dispatched' || (st as any) === 'dispatch';
+                return isDispatched ? (
+                  <Tooltip title="System Status: Outbound Dispatched / Completed">
+                    <Tag
+                      color="success"
+                      style={{
+                        margin: 0,
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        borderRadius: '12px',
+                        padding: '2px 10px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <CheckCircleOutlined />
+                      DISPATCH
+                    </Tag>
+                  </Tooltip>
+                ) : (
+                  <Tooltip title="System Status: Work In Progress (Packaged & Married at Line)">
+                    <Tag
+                      color="warning"
+                      style={{
+                        margin: 0,
+                        fontWeight: 800,
+                        fontSize: '11px',
+                        borderRadius: '12px',
+                        padding: '2px 10px',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                      }}
+                    >
+                      <ClockCircleOutlined />
+                      WIP
+                    </Tag>
+                  </Tooltip>
+                );
+              },
+            },
+            {
+              title: 'Timestamp',
+              dataIndex: 'timestamp',
+              key: 'timestamp',
+              align: 'center',
+              render: (t: string, r: any) => (
+                <span style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>
+                  {formatToIST(t || r.timestamp || r.createdOn || r.productValidationTimestamp)}
+                </span>
               ),
+              width: 160,
             },
           ]}
         />
