@@ -254,6 +254,7 @@ if __name__ == "__main__":
     import uvicorn
     import webbrowser
     import threading
+    import time
 
     def open_browser():
         time.sleep(1.2)

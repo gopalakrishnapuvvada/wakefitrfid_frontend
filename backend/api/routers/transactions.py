@@ -794,6 +794,10 @@ def post_fixed_rfid(
     full_time_str = time_str
     scan_id = f"FIXED-SCAN-{int(now_ist.timestamp())}-{_fixed_scan_counter}"
 
+    item = txn.master_item
+    if not item and txn.material_code:
+        item = db.query(MasterDataItem).filter(MasterDataItem.material_code == txn.material_code).first()
+
     prod_name = (
         (item.model or item.product_description)
         if item
