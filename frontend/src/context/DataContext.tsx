@@ -67,6 +67,7 @@ interface DataContextType {
     validationPassRate: number;
     totalValidationsToday: number;
     totalMarriedToday: number;
+    wipTodayCount: number;
     dispatchedTodayCount: number;
     totalCompletedTransactions: number;
   };
@@ -581,12 +582,25 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const passRate = validations.length > 0 ? (passedValidations / validations.length) * 100 : 100;
 
   const todayStr = dayjs().format('YYYY-MM-DD');
+  
   const marriedToday = marriedTransactions.filter(t => {
-    if (!t.timestamp) return false;
-    const tDate = t.timestamp.split('T')[0].split(' ')[0];
+    const rawTs = (t as any).productValidationTimestamp || t.wipScanTimestamp || t.timestamp || (t as any).createdOn;
+    if (!rawTs) return false;
+    const tDate = String(rawTs).split('T')[0].split(' ')[0];
     return tDate === todayStr;
   });
-  const dispatchedToday = marriedToday.filter(t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch');
+
+  const wipToday = marriedToday.filter(t => (t.status || 'WIP') === 'WIP' && (t as any).statusId !== 'dispatch');
+  
+  const dispatchedToday = marriedTransactions.filter(t => {
+    const isDispatched = t.status === 'Dispatched' || (t as any).statusId === 'dispatch';
+    if (!isDispatched) return false;
+    const rawTs = (t as any).labelLookupTimestamp || t.dispatchScanTimestamp || t.timestamp;
+    if (!rawTs) return false;
+    const tDate = String(rawTs).split('T')[0].split(' ')[0];
+    return tDate === todayStr;
+  });
+
   const completedAll = marriedTransactions.filter(t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch');
 
   const stats = {
@@ -600,6 +614,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     validationPassRate: Number(passRate.toFixed(1)),
     totalValidationsToday: validations.length,
     totalMarriedToday: marriedToday.length,
+    wipTodayCount: wipToday.length,
     dispatchedTodayCount: dispatchedToday.length,
     totalCompletedTransactions: completedAll.length,
   };

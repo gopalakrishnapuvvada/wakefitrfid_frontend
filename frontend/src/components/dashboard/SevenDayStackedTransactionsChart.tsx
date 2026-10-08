@@ -77,13 +77,15 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
       // Start with empty counts - strictly calculated from real completed database transactions
       const counts: Record<string, number> = {};
 
-      // Integrate real-time live completed married transactions into the matching day's bucket
+      // Integrate real-time live completed/dispatched married transactions into the matching day's bucket
       marriedTransactions.forEach(txn => {
-        if (!txn.timestamp) return;
         const isCompleted = txn.status === 'Dispatched' || (txn as any).statusId === 'dispatch';
         if (!isCompleted) return;
 
-        const txnDate = txn.timestamp.split('T')[0].split(' ')[0];
+        const rawTs = (txn as any).labelLookupTimestamp || txn.dispatchScanTimestamp || txn.timestamp;
+        if (!rawTs) return;
+
+        const txnDate = String(rawTs).split('T')[0].split(' ')[0];
         if (txnDate === dateStr && txn.materialCode) {
           counts[txn.materialCode] = (counts[txn.materialCode] || 0) + 1;
         }

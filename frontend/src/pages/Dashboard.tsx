@@ -9,6 +9,7 @@ import {
 import { 
   DatabaseOutlined, 
   CheckCircleOutlined,
+  ClockCircleOutlined,
 } from '@ant-design/icons';
 import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
@@ -24,9 +25,9 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-      {/* Top 4 KPI Cards */}
+      {/* Top 3 KPI Cards */}
       <Row gutter={[16, 16]}>
-        {/* 1. Total Completed FG Transactions */}
+        {/* 1. Active WIP Transactions (Today) */}
         <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
@@ -38,26 +39,26 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             }}
           >
             <Statistic
-              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>Total Completed Transactions</span>}
-              value={stats.totalCompletedTransactions}
-              prefix={<CheckCircleOutlined style={{ color: '#0284C7', marginRight: '6px' }} />}
+              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>Active WIP Transactions</span>}
+              value={stats.wipTodayCount}
+              prefix={<ClockCircleOutlined style={{ color: '#F59E0B', marginRight: '6px' }} />}
               valueStyle={{ fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}
             />
             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-              All-time verified finished goods completed shipments
+              Current pending finished goods in line today
             </div>
             <Button
               type="link"
               size="small"
-              style={{ padding: 0, marginTop: '2px', fontSize: '11px', color: '#0284C7' }}
-              onClick={() => onNavigate('history')}
+              style={{ padding: 0, marginTop: '2px', fontSize: '11px', color: '#F59E0B' }}
+              onClick={() => onNavigate('product-validation')}
             >
-              View History Records →
+              View WIP Validations →
             </Button>
           </Card>
         </Col>
 
-        {/* 2. FG Completed Transactions Today */}
+        {/* 2. Dispatched Transactions (Today) */}
         <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
@@ -69,13 +70,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             }}
           >
             <Statistic
-              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FG Completed Transactions Today</span>}
+              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>Dispatched Transactions</span>}
               value={stats.dispatchedTodayCount}
               prefix={<CheckCircleOutlined style={{ color: '#10B981', marginRight: '6px' }} />}
               valueStyle={{ fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}
             />
             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-              Outbound dock portal verified shipments today
+              Completed outbound shipments today
             </div>
             <Button
               type="link"
