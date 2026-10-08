@@ -42,7 +42,7 @@ def main():
         "status_transaction_data"
     ]
     for table in expected_tables:
-        assert table in tables, f"Table '{table}' missing in dummy.db!"
+        assert table in tables, f"Table '{table}' missing in fg_server_db.db!"
         print_success(f"Table '{table}' verified.")
 
     print_header("2. SEED INITIAL DATA (/api/master_data/seed)")

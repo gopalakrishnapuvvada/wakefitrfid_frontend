@@ -13,7 +13,7 @@ if getattr(sys, 'frozen', False):
 else:
     BACKEND_DIR = Path(__file__).resolve().parent.parent
 
-DB_PATH = BACKEND_DIR / "dummy.db"
+DB_PATH = BACKEND_DIR / "fg_server_db.db"
 DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{DB_PATH}")
 
 
