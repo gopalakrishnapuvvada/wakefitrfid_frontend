@@ -38,7 +38,12 @@ router = APIRouter(
     tags=["FG Marriage & Scan Transactions"],
 )
 
-UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads" / "transactions"
+import sys
+
+if getattr(sys, "frozen", False):
+    UPLOAD_DIR = Path(sys.executable).resolve().parent / "uploads" / "transactions"
+else:
+    UPLOAD_DIR = Path(__file__).resolve().parent.parent.parent / "uploads" / "transactions"
 UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
 
 
@@ -73,6 +78,9 @@ def save_transaction_images(txn_id: str, images: List[str]) -> List[str]:
             saved_paths.append(rel_path)
         except Exception as e:
             print(f"Warning: Failed to save image {idx} for transaction {txn_id}: {e}")
+
+    return saved_paths
+
 
 def parse_filter_datetime(val: Optional[str], is_end: bool = False) -> Optional[datetime]:
     """
