@@ -676,31 +676,67 @@ Read Timestamp: ${new Date().toISOString()}
               title: 'Factory RFID Tag ID',
               dataIndex: 'rfidUniqueId',
               key: 'rfidUniqueId',
-              width: 220,
+              width: 230,
               render: (rfid: string) => (
-                <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#0284C7', fontWeight: 700 }}>
-                  {rfid}
-                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#0284C7', fontWeight: 700 }}>
+                    {rfid}
+                  </span>
+                  {rfid && (
+                    <Tooltip title="Copy RFID Tag ID">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<CopyOutlined style={{ fontSize: '11px', color: '#94a3b8' }} />}
+                        onClick={() => handleCopy(rfid, `rfid_${rfid}`, 'Factory RFID Tag ID')}
+                      />
+                    </Tooltip>
+                  )}
+                </div>
               ),
             },
             {
               title: 'Work Order No. (WO)',
               dataIndex: 'workOrderNo',
               key: 'workOrderNo',
-              width: 160,
+              width: 170,
               render: (wo: string) => (
-                <Tag color="purple" style={{ fontFamily: 'monospace', margin: 0 }}>
-                  {wo}
-                </Tag>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <Tag color="purple" style={{ fontFamily: 'monospace', margin: 0 }}>
+                    {wo}
+                  </Tag>
+                  {wo && (
+                    <Tooltip title="Copy Work Order No.">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<CopyOutlined style={{ fontSize: '11px', color: '#94a3b8' }} />}
+                        onClick={() => handleCopy(wo, `wo_${wo}`, 'Work Order Number')}
+                      />
+                    </Tooltip>
+                  )}
+                </div>
               ),
             },
             {
               title: 'Material Code',
               dataIndex: 'materialCode',
               key: 'materialCode',
-              width: 150,
+              width: 160,
               render: (mat: string) => (
-                <strong style={{ color: '#E53935', fontFamily: 'monospace' }}>{mat}</strong>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                  <strong style={{ color: '#E53935', fontFamily: 'monospace' }}>{mat}</strong>
+                  {mat && (
+                    <Tooltip title="Copy Material Code">
+                      <Button
+                        size="small"
+                        type="text"
+                        icon={<CopyOutlined style={{ fontSize: '11px', color: '#94a3b8' }} />}
+                        onClick={() => handleCopy(mat, `mat_${mat}`, 'Material Code')}
+                      />
+                    </Tooltip>
+                  )}
+                </div>
               ),
             },
             {
