@@ -1,0 +1,81 @@
+name: Build Windows EXE
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main, master ]
+    tags: [ 'v*' ]
+
+jobs:
+  build-windows:
+    name: Build Windows Executable & Frontend Package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      # 1. Setup Node.js & Build React Frontend
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install Frontend Dependencies & Build
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      # 2. Setup Python & Install Backend Dependencies
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install Python Dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r backend/requirements.txt
+          pip install pyinstaller
+
+      # 3. Build Backend Executable with PyInstaller
+      - name: Build Backend Executable (PyInstaller)
+        run: |
+          cd backend
+          pyinstaller --noconfirm --onedir --name "WakefitRFID_Server" `
+            --hidden-import uvicorn.logging `
+            --hidden-import uvicorn.loops `
+            --hidden-import uvicorn.loops.auto `
+            --hidden-import uvicorn.protocols `
+            --hidden-import uvicorn.protocols.http `
+            --hidden-import uvicorn.protocols.http.auto `
+            --hidden-import uvicorn.protocols.websockets `
+            --hidden-import uvicorn.protocols.websockets.auto `
+            --hidden-import uvicorn.lifespans `
+            --hidden-import uvicorn.lifespans.on `
+            main.py
+
+      # 4. Prepare Output Distribution Bundle
+      - name: Assemble Release Bundle
+        run: |
+          mkdir dist-package
+          # Copy backend server distribution
+          xcopy /E /I backend\dist\WakefitRFID_Server dist-package\backend_server
+          # Copy frontend production build
+          xcopy /E /I frontend\dist dist-package\frontend_web
+          # Create default uploads folder structure
+          mkdir dist-package\backend_server\uploads\transactions
+
+      # 5. Upload GitHub Artifact
+      - name: Upload Windows Distribution Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: WakefitRFID_Windows_Release
+          path: dist-package/
+          retention-days: 30
+
