@@ -41,19 +41,22 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
   // Selected Material Code Filter ('ALL' for all stacked material codes)
   const [selectedMaterial, setSelectedMaterial] = useState<string>('ALL');
 
-  // List of distinct material codes from master data and married transactions
+  // List of distinct material codes from master data and completed married transactions
   const availableMaterialCodes = useMemo(() => {
     const codes = new Set<string>();
     masterData.forEach(item => {
       if (item.materialCode) codes.add(item.materialCode);
     });
     marriedTransactions.forEach(item => {
-      if (item.materialCode) codes.add(item.materialCode);
+      const isCompleted = item.status === 'Dispatched' || (item as any).statusId === 'dispatch';
+      if (isCompleted && item.materialCode) {
+        codes.add(item.materialCode);
+      }
     });
     return Array.from(codes);
   }, [masterData, marriedTransactions]);
 
-  // Generate 7 Days data array ending on today strictly from real transactions
+  // Generate 7 Days data array ending on today strictly from completed transactions
   const sevenDayData = useMemo(() => {
     const days: {
       dateStr: string;        // '2026-08-31'
@@ -71,12 +74,15 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
       const dayName = d.format('ddd');
       const isToday = i === 0;
 
-      // Start with empty counts - strictly calculated from real database transactions
+      // Start with empty counts - strictly calculated from real completed database transactions
       const counts: Record<string, number> = {};
 
-      // Integrate real-time live married transactions into the matching day's bucket
+      // Integrate real-time live completed married transactions into the matching day's bucket
       marriedTransactions.forEach(txn => {
         if (!txn.timestamp) return;
+        const isCompleted = txn.status === 'Dispatched' || (txn as any).statusId === 'dispatch';
+        if (!isCompleted) return;
+
         const txnDate = txn.timestamp.split('T')[0].split(' ')[0];
         if (txnDate === dateStr && txn.materialCode) {
           counts[txn.materialCode] = (counts[txn.materialCode] || 0) + 1;
@@ -145,25 +151,25 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
               width: '36px',
               height: '36px',
               borderRadius: '8px',
-              backgroundColor: isDark ? '#0f172a' : '#fee2e2',
+              backgroundColor: isDark ? '#0f172a' : '#dcfce7',
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
             }}
           >
-            <BarChartOutlined style={{ color: '#E53935', fontSize: '18px' }} />
+            <BarChartOutlined style={{ color: '#10B981', fontSize: '18px' }} />
           </div>
           <div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <span style={{ fontSize: '16px', fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}>
-                Day-wise FG Transactions (Last 7 Days)
+                Day-wise Completed FG Transactions (Last 7 Days)
               </span>
-              <Tag color="red" style={{ fontWeight: 700, borderRadius: '12px', fontSize: '10px' }}>
-                LIVE DATABASE
+              <Tag color="green" style={{ fontWeight: 700, borderRadius: '12px', fontSize: '10px' }}>
+                COMPLETED SCANS
               </Tag>
             </div>
             <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-              Finished goods verified scan transactions breakdown across material codes.
+              Finished goods verified completed scan transactions breakdown across material codes.
             </div>
           </div>
         </div>
@@ -282,7 +288,7 @@ export const SevenDayStackedTransactionsChart: React.FC = () => {
               <div style={{ padding: '4px', minWidth: '220px' }}>
                 <div style={{ fontWeight: 800, borderBottom: '1px solid rgba(255,255,255,0.2)', paddingBottom: '4px', marginBottom: '6px', display: 'flex', justifyContent: 'space-between' }}>
                   <span>{day.dayName}, {day.displayDate} {day.isToday && '(Today)'}</span>
-                  <Tag color="red" style={{ margin: 0, fontSize: '10px' }}>{day.totalTransactions} Total</Tag>
+                  <Tag color="green" style={{ margin: 0, fontSize: '10px' }}>{day.totalTransactions} Completed</Tag>
                 </div>
                 <div style={{ fontSize: '11px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
                   {selectedMaterial === 'ALL' ? (

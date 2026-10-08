@@ -68,6 +68,7 @@ interface DataContextType {
     totalValidationsToday: number;
     totalMarriedToday: number;
     dispatchedTodayCount: number;
+    totalCompletedTransactions: number;
   };
 }
 
@@ -585,7 +586,8 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const tDate = t.timestamp.split('T')[0].split(' ')[0];
     return tDate === todayStr;
   });
-  const dispatchedToday = marriedToday.filter(t => t.status === 'Dispatched');
+  const dispatchedToday = marriedToday.filter(t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch');
+  const completedAll = marriedTransactions.filter(t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch');
 
   const stats = {
     totalMasterItems: masterData.length,
@@ -599,6 +601,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     totalValidationsToday: validations.length,
     totalMarriedToday: marriedToday.length,
     dispatchedTodayCount: dispatchedToday.length,
+    totalCompletedTransactions: completedAll.length,
   };
 
   return (

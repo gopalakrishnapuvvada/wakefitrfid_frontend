@@ -107,25 +107,25 @@ app.add_middleware(
 
 # 1. Master Data Items & Catalog (includes /post_devices_data, /get_devices_data, /get_roles_data, /update_roles_password)
 app.include_router(master_data_router, prefix="/api/master_data")
-app.include_router(master_data_router, prefix="/api/master-data")
-app.include_router(master_data_router, prefix="/master_data")
-app.include_router(master_data_router, prefix="/master-data")
+app.include_router(master_data_router, prefix="/api/master-data", include_in_schema=False)
+app.include_router(master_data_router, prefix="/master_data", include_in_schema=False)
+app.include_router(master_data_router, prefix="/master-data", include_in_schema=False)
 
 # 2. Dedicated Roles Router
 app.include_router(roles_router, prefix="/api/roles")
-app.include_router(roles_router, prefix="/roles")
+app.include_router(roles_router, prefix="/roles", include_in_schema=False)
 
 # 3. Dedicated Devices Router
 app.include_router(devices_router, prefix="/api/devices")
-app.include_router(devices_router, prefix="/devices")
+app.include_router(devices_router, prefix="/devices", include_in_schema=False)
 
 # 4. Married FG Transactions & Audit Router
 from utils.dependencies import get_db
 from fastapi import Depends
 
 app.include_router(transactions_router, prefix="/api/transactions")
-app.include_router(transactions_router, prefix="/api/marriage")
-app.include_router(transactions_router, prefix="/transactions")
+app.include_router(transactions_router, prefix="/api/marriage", include_in_schema=False)
+app.include_router(transactions_router, prefix="/transactions", include_in_schema=False)
 
 # Global routes for post_scan (with post_can aliases)
 @app.post("/api/post_scan")
@@ -183,7 +183,7 @@ def global_clear_transactions(db=Depends(get_db)):
 
 # 5. Production Records (legacy dummy)
 app.include_router(production_router, prefix="/api/production")
-app.include_router(production_router, prefix="/production-records")
+app.include_router(production_router, prefix="/production-records", include_in_schema=False)
 
 # 6. SICK Fixed RFID Hardware Management Router & Real-Time WebSocket
 from fastapi import WebSocket, WebSocketDisconnect

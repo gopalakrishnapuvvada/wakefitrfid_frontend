@@ -8,7 +8,6 @@ import {
 } from 'antd';
 import { 
   DatabaseOutlined, 
-  FileTextOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useData } from '../context/DataContext';
@@ -27,7 +26,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
     <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
       {/* Top 4 KPI Cards */}
       <Row gutter={[16, 16]}>
-        {/* 1. FG WIP Transactions Today */}
+        {/* 1. Total Completed FG Transactions */}
         <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
@@ -39,18 +38,18 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             }}
           >
             <Statistic
-              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FG WIP Transactions Today</span>}
-              value={Math.max(0, stats.totalMarriedToday - stats.dispatchedTodayCount)}
-              prefix={<FileTextOutlined style={{ color: '#E53935', marginRight: '6px' }} />}
+              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>Total Completed Transactions</span>}
+              value={stats.totalCompletedTransactions}
+              prefix={<CheckCircleOutlined style={{ color: '#0284C7', marginRight: '6px' }} />}
               valueStyle={{ fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}
             />
             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-              Verified finished goods WIP scan transactions
+              All-time verified finished goods completed shipments
             </div>
             <Button
               type="link"
               size="small"
-              style={{ padding: 0, marginTop: '2px', fontSize: '11px' }}
+              style={{ padding: 0, marginTop: '2px', fontSize: '11px', color: '#0284C7' }}
               onClick={() => onNavigate('history')}
             >
               View History Records →
@@ -58,7 +57,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
           </Card>
         </Col>
 
-        {/* 2. FG Dispatch Transactions Today */}
+        {/* 2. FG Completed Transactions Today */}
         <Col xs={24} sm={12} lg={8}>
           <Card
             bordered={false}
@@ -70,13 +69,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ onNavigate }) => {
             }}
           >
             <Statistic
-              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FG Dispatch Transactions Today</span>}
+              title={<span style={{ fontSize: '13px', fontWeight: 600, color: '#64748b' }}>FG Completed Transactions Today</span>}
               value={stats.dispatchedTodayCount}
               prefix={<CheckCircleOutlined style={{ color: '#10B981', marginRight: '6px' }} />}
               valueStyle={{ fontWeight: 800, color: isDark ? '#f8fafc' : '#0f172a' }}
             />
             <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '6px' }}>
-              Outbound dock portal verified shipments
+              Outbound dock portal verified shipments today
             </div>
             <Button
               type="link"
