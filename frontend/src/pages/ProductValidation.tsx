@@ -39,20 +39,12 @@ export const ProductValidation: React.FC = () => {
   // Initial Production Scanned State (starts null, populated via incoming RFID/QR scan events or trigger)
   const [currentScan, setCurrentScan] = useState<ScannedLabelData | null>(null);
 
-  // Buffer tracking for incoming external POST /post_scan requests (e.g. from curl or physical RFID/barcode scanners)
-  const [lastProcessedScanId, setLastProcessedScanId] = useState<string | null>(null);
-
-  // References to eliminate React closure stale state issues during async polling & confirmations
+  // References to eliminate React closure stale state issues during async operations
   const currentScanRef = useRef<ScannedLabelData | null>(null);
-  const lastProcessedScanIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     currentScanRef.current = currentScan;
   }, [currentScan]);
-
-  useEffect(() => {
-    lastProcessedScanIdRef.current = lastProcessedScanId;
-  }, [lastProcessedScanId]);
 
   // Helper: Resolve full MasterDataItem and product images for a Material Code (Foreign Key constraint)
   const resolveFgItem = (matVal: string, fallbackItem?: any): MasterDataItem | null => {
@@ -591,66 +583,19 @@ export const ProductValidation: React.FC = () => {
     }
   };
 
-  // Background polling listener: captures external POST /post_scan calls (from RS38, curl, or external RFID readers)
+  // Periodic refresh of transactions from SQLite DB so transactions committed in the app stay in sync
   useEffect(() => {
     let isSubscribed = true;
-    let pollCount = 0;
-    const checkPending = async () => {
-      try {
-        pollCount++;
-        // Periodically refresh transactions from SQLite DB so dispatched items drop out of WIP in real time
-        if (pollCount % 3 === 0 && refreshTransactions) {
-          refreshTransactions();
-        }
-
-        const getPendingFn = TransactionsApi.getPendingScan;
-        let pending: any;
-        if (typeof getPendingFn === 'function') {
-          pending = await getPendingFn();
-        } else {
-          const fetchRes = await fetch('/api/transactions/pending_scan');
-          pending = await fetchRes.json();
-        }
-        if (!isSubscribed) return;
-        if (
-          pending && 
-          pending.scanId && 
-          pending.scanId !== lastProcessedScanIdRef.current && 
-          pending.status === 'AWAITING_QUEUE'
-        ) {
-          lastProcessedScanIdRef.current = pending.scanId;
-          setLastProcessedScanId(pending.scanId);
-
-          const rawRfid = pending.rawRfid !== undefined ? pending.rawRfid : pending.rfidUniqueId;
-          const rawMat = pending.rawMaterialCode !== undefined ? pending.rawMaterialCode : pending.materialCode;
-          const rawWo = pending.rawWorkOrderNo !== undefined ? pending.rawWorkOrderNo : pending.workOrderNo;
-
-          handleIncomingScan({
-            rawRfid,
-            rawMat,
-            rawWo,
-            deviceId: pending.deviceId,
-            deviceName: pending.deviceName,
-            matchedFgItem: pending.matchedFgItem,
-            rfidProtocol: pending.rfidProtocol,
-            rfidSignalRssi: pending.rfidSignalRssi,
-            materialInMaster: pending.materialInMaster,
-            alreadyCommitted: pending.alreadyCommitted,
-            existingTransaction: pending.existingTransaction,
-          });
-        }
-      } catch {
-        // silent polling
+    const interval = setInterval(() => {
+      if (isSubscribed && refreshTransactions) {
+        refreshTransactions();
       }
-    };
-
-    checkPending();
-    const interval = setInterval(checkPending, 1200);
+    }, 3000);
     return () => {
       isSubscribed = false;
       clearInterval(interval);
     };
-  }, [masterData, activeDevice, refreshTransactions]);
+  }, [refreshTransactions]);
 
   // Global Hardware Scanner Listener (for physical CipherLab RS38 / Honeywell USB/Bluetooth scanners)
   useEffect(() => {
