@@ -1,14 +1,14 @@
-name: Build Windows EXE
+name: Build Windows Single EXE
 
 on:
   workflow_dispatch:
   push:
-    branches: [ main, master ]
+    branches: [ main, master, gopala ]
     tags: [ 'v*' ]
 
 jobs:
-  build-windows:
-    name: Build Windows Executable & Frontend Package
+  build-single-exe:
+    name: Build Standalone Single Windows EXE
     runs-on: windows-latest
 
     steps:
@@ -43,11 +43,12 @@ jobs:
           pip install -r backend/requirements.txt
           pip install pyinstaller
 
-      # 3. Build Backend Executable with PyInstaller
-      - name: Build Backend Executable (PyInstaller)
+      # 3. Build Backend Executable with PyInstaller as a SINGLE standalone .exe file
+      - name: Build Standalone Single EXE (PyInstaller)
         run: |
           cd backend
-          pyinstaller --noconfirm --onedir --name "WakefitRFID_Server" `
+          pyinstaller --noconfirm --onefile --name "WakefitRFID_Server" `
+            --add-data "../frontend/dist;frontend/dist" `
             --hidden-import uvicorn.logging `
             --hidden-import uvicorn.loops `
             --hidden-import uvicorn.loops.auto `
@@ -60,22 +61,10 @@ jobs:
             --hidden-import uvicorn.lifespans.on `
             main.py
 
-      # 4. Prepare Output Distribution Bundle
-      - name: Assemble Release Bundle
-        run: |
-          mkdir dist-package
-          # Copy backend server distribution
-          xcopy /E /I backend\dist\WakefitRFID_Server dist-package\backend_server
-          # Copy frontend production build
-          xcopy /E /I frontend\dist dist-package\frontend_web
-          # Create default uploads folder structure
-          mkdir dist-package\backend_server\uploads\transactions
-
-      # 5. Upload GitHub Artifact
-      - name: Upload Windows Distribution Artifact
+      # 4. Upload GitHub Artifact (Single Standalone .exe)
+      - name: Upload Single Windows EXE Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: WakefitRFID_Windows_Release
-          path: dist-package/
+          name: WakefitRFID_Single_EXE
+          path: backend/dist/WakefitRFID_Server.exe
           retention-days: 30
-
