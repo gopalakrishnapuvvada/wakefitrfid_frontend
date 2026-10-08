@@ -36,6 +36,7 @@ import { useData } from '../context/DataContext';
 import { useAppTheme } from '../context/ThemeContext';
 import type { MarriedTransaction, TransactionFilterParams } from '../types';
 import { getProductImageByMaterial, resolveImageUrl, normalizeImageList, TransactionsApi } from '../services/api';
+import { formatToIST } from '../utils/dateUtils';
 
 dayjs.extend(isBetween);
 
@@ -363,93 +364,24 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
   const dispatchedCount = historyData.filter(t => t.status === 'Dispatched').length;
   const uniqueWorkOrders = new Set(historyData.map(t => t.workOrderNo).filter(Boolean)).size;
 
-  // Table Columns (Exact requested sequence: FG Image, Transaction ID, Material Code, Part Number, Work Order No., RFID ID, WIP Scan Timestamp, Dispatch Scan Timestamp)
+  // Table Columns (Exact requested sequence: Transaction ID, Factory RFID Tag ID, Work Order No. (WO), Material Code, WIP Scan Timestamp, Dispatch Scan Timestamp, Actions)
   const columns: ColumnsType<MarriedTransaction> = [
-    {
-      title: 'FG Image',
-      key: 'productImage',
-      width: 75,
-      align: 'center',
-      render: (_, record) => {
-        const catalogItem = masterData?.find(
-          m => m.materialCode.toUpperCase() === (record.materialCode || '').toUpperCase()
-        );
-        const catalogImg = Array.isArray(catalogItem?.fgImage)
-          ? catalogItem.fgImage[0]
-          : (typeof catalogItem?.fgImage === 'string' && catalogItem.fgImage !== 'string' ? catalogItem.fgImage : null);
-        const imgSrc =
-          record.productImage ||
-          catalogImg ||
-          getProductImageByMaterial(record.materialCode, record.category);
-
-        return (
-          <div style={{ display: 'flex', justifyContent: 'center' }}>
-            <Image
-              src={imgSrc}
-              alt={record.partNumber}
-              width={48}
-              height={48}
-              style={{
-                objectFit: 'cover',
-                borderRadius: '6px',
-                border: `1px solid ${isDark ? '#334155' : '#e2e8f0'}`,
-                backgroundColor: isDark ? '#0f172a' : '#f8fafc',
-              }}
-              fallback="/products/mattress_1.jpg"
-            />
-          </div>
-        );
-      },
-    },
     {
       title: 'Transaction ID',
       dataIndex: 'transactionId',
       key: 'transactionId',
       width: 170,
       render: (txnId: string) => (
-        <span style={{ color: '#D32F2F', fontWeight: 700, fontFamily: 'monospace', fontSize: '13px' }}>
+        <strong style={{ color: '#D32F2F', fontFamily: 'monospace', fontSize: '13px' }}>
           {txnId}
-        </span>
+        </strong>
       ),
     },
     {
-      title: 'Material Code',
-      dataIndex: 'materialCode',
-      key: 'materialCode',
-      width: 160,
-      render: (mat: string) => (
-        <span style={{ color: '#E53935', fontWeight: 700, fontFamily: 'monospace', fontSize: '13px' }}>
-          {mat}
-        </span>
-      ),
-    },
-    {
-      title: 'Part Number',
-      dataIndex: 'partNumber',
-      key: 'partNumber',
-      width: 160,
-      render: (part: string) => (
-        <span style={{ color: isDark ? '#f8fafc' : '#0f172a', fontWeight: 700, fontFamily: 'monospace', fontSize: '12px' }}>
-          {part}
-        </span>
-      ),
-    },
-    {
-      title: 'Work Order No.',
-      dataIndex: 'workOrderNo',
-      key: 'workOrderNo',
-      width: 170,
-      render: (wo: string) => (
-        <span style={{ color: '#9333EA', fontWeight: 600, fontFamily: 'monospace', fontSize: '12px' }}>
-          {wo}
-        </span>
-      ),
-    },
-    {
-      title: 'RFID ID',
+      title: 'Factory RFID Tag ID',
       dataIndex: 'rfidUniqueId',
       key: 'rfidUniqueId',
-      width: 210,
+      width: 220,
       render: (rfid: string) => (
         <span style={{ color: '#0284C7', fontWeight: 700, fontFamily: 'monospace', fontSize: '12px' }}>
           {rfid}
@@ -457,14 +389,37 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
       ),
     },
     {
+      title: 'Work Order No. (WO)',
+      dataIndex: 'workOrderNo',
+      key: 'workOrderNo',
+      width: 160,
+      render: (wo: string) => (
+        <Tag color="purple" style={{ fontFamily: 'monospace', margin: 0 }}>
+          {wo}
+        </Tag>
+      ),
+    },
+    {
+      title: 'Material Code',
+      dataIndex: 'materialCode',
+      key: 'materialCode',
+      width: 150,
+      render: (mat: string) => (
+        <strong style={{ color: '#E53935', fontFamily: 'monospace', fontSize: '13px' }}>
+          {mat}
+        </strong>
+      ),
+    },
+    {
       title: 'WIP Scan Timestamp',
       key: 'wipScanTimestamp',
+      align: 'center',
       width: 170,
       render: (_, record) => {
-        const ts = record.wipScanTimestamp || record.timestamp;
+        const ts = (record as any).productValidationTimestamp || record.wipScanTimestamp || (record.status === 'WIP' ? record.timestamp : '') || record.timestamp || (record as any).createdOn;
         return (
           <span style={{ fontSize: '12px', color: isDark ? '#cbd5e1' : '#475569', fontFamily: 'monospace' }}>
-            {ts}
+            {formatToIST(ts)}
           </span>
         );
       },
@@ -472,19 +427,14 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
     {
       title: 'Dispatch Scan Timestamp',
       key: 'dispatchScanTimestamp',
+      align: 'center',
       width: 180,
       render: (_, record) => {
-        if (record.dispatchScanTimestamp) {
+        const dt = (record as any).labelLookupTimestamp || record.dispatchScanTimestamp || (record.status === 'Dispatched' ? record.timestamp : null);
+        if (dt) {
           return (
             <span style={{ fontSize: '12px', color: '#10B981', fontFamily: 'monospace', fontWeight: 700 }}>
-              {record.dispatchScanTimestamp}
-            </span>
-          );
-        }
-        if (record.status === 'Dispatched') {
-          return (
-            <span style={{ fontSize: '12px', color: '#10B981', fontFamily: 'monospace', fontWeight: 700 }}>
-              {record.timestamp}
+              {formatToIST(dt)}
             </span>
           );
         }
@@ -496,9 +446,9 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
       },
     },
     {
-      title: 'Action',
-      key: 'action',
-      width: 90,
+      title: 'Actions',
+      key: 'actions',
+      width: 100,
       align: 'center',
       render: (_, record) => (
         <Button
@@ -645,7 +595,6 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
               <Button size="small" disabled={isLoading} onClick={() => handlePreset('24h')}>Last 24h</Button>
               <Button size="small" disabled={isLoading} onClick={() => handlePreset('7d')}>Last 7D</Button>
               <Button size="small" disabled={isLoading} onClick={() => handlePreset('month')}>Month</Button>
-              <Button size="small" disabled={isLoading} onClick={() => handlePreset('all')}>All</Button>
             </Space>
           </div>
 
@@ -696,6 +645,8 @@ export const HistoryPage: React.FC<HistoryPageProps> = () => {
           dataSource={historyData}
           rowKey={(r) => r.id || r.transactionId || String(r.sqliteRecordId)}
           loading={isLoading}
+          size="middle"
+          scroll={{ x: 1100 }}
           locale={{
             emptyText: (
               <div style={{ padding: '36px 0', textAlign: 'center' }}>
