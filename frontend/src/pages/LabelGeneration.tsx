@@ -19,6 +19,7 @@ import {
   HistoryOutlined,
   ExportOutlined,
   SearchOutlined,
+  CheckCircleOutlined,
 } from '@ant-design/icons';
 import confetti from 'canvas-confetti';
 import { useData } from '../context/DataContext';
@@ -30,24 +31,10 @@ import { formatToIST } from '../utils/dateUtils';
 
 const { Option } = Select;
 
-const DISPATCH_READS_KEY = 'wakefit_recent_conveyor_reads_v3';
 const AUTO_RESET_HOLD_MS = 5000; // Hold detection display for 5 seconds, then return to Green Steady (Standby)
 
-interface RecentConveyorRead {
-  id: string;
-  timestamp: string;
-  transactionId: string;
-  rfidTag: string;
-  materialCode: string;
-  partNumber: string;
-  workOrderNo: string;
-  productName: string;
-  status: string;
-  antenna: string;
-}
-
 export const LabelGeneration: React.FC = () => {
-  const { masterData, updateTransactionStatus, refreshTransactions, devices } = useData();
+  const { masterData, updateTransactionStatus, refreshTransactions, devices, marriedTransactions } = useData();
   const { isDark } = useAppTheme();
 
   // Find dynamically registered Fixed RFID Scanner from Device Management
@@ -88,40 +75,29 @@ export const LabelGeneration: React.FC = () => {
     setActivePartNumber(null);
   }, []);
 
-  // Recent Conveyor Reads History Stream (Persisted in localStorage across refreshes)
-  const [recentReads, setRecentReads] = useState<RecentConveyorRead[]>(() => {
-    try {
-      const saved = localStorage.getItem(DISPATCH_READS_KEY);
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length > 0) {
-          return parsed;
-        }
-      }
-    } catch {
-      // fallback
-    }
-    return [];
-  });
-
-  // Automatically save recentReads to localStorage whenever it changes
-  useEffect(() => {
-    try {
-      if (recentReads.length > 0) {
-        localStorage.setItem(DISPATCH_READS_KEY, JSON.stringify(recentReads));
-      } else {
-        localStorage.removeItem(DISPATCH_READS_KEY);
-      }
-    } catch {
-      // ignore
-    }
-  }, [recentReads]);
+  // Dispatched transactions from SQLite DB (persisted and synchronized)
+  const dispatchedTransactions = useMemo(() => {
+    return (marriedTransactions || [])
+      .filter(t => t.status === 'Dispatched' || (t as any).statusId === 'dispatch')
+      .map(t => ({
+        id: t.id || t.transactionId,
+        transactionId: t.transactionId,
+        rfidUniqueId: t.rfidUniqueId,
+        workOrderNo: t.workOrderNo,
+        materialCode: t.materialCode,
+        partNumber: t.partNumber,
+        productName: t.productName,
+        status: 'Dispatched',
+        timestamp: t.timestamp,
+        labelLookupTimestamp: (t as any).labelLookupTimestamp,
+        dispatchScanTimestamp: t.dispatchScanTimestamp,
+      }));
+  }, [marriedTransactions]);
 
   // Refresh live transactions on mount to ensure synchronization with SQLite
   useEffect(() => {
     refreshTransactions();
   }, [refreshTransactions]);
-
 
   // Clean any stale legacy scan cache on component mount
   useEffect(() => {
@@ -186,37 +162,7 @@ export const LabelGeneration: React.FC = () => {
             setSelectedSkuIndex(matchedIdx);
           }
 
-          // Format full IST date & time: 'YYYY-MM-DD HH:mm:ss'
-          const scanTimestamp = formatToIST(pending.fullTimestamp || pending.timestamp || new Date());
-
-          // 3. Parallely add to FG Dispatch Transaction Records table and persist
-          const newReadRecord: RecentConveyorRead = {
-            id: `READ-${Date.now()}`,
-            timestamp: scanTimestamp,
-            transactionId: pending.transactionId,
-            rfidTag: pending.rfidUniqueId,
-            materialCode: pending.materialCode,
-            partNumber: pending.partNumber || '',
-            workOrderNo: pending.workOrderNo || '',
-            productName: pending.productName || 'Finished Good',
-            status: 'Dispatch',
-            antenna: pending.antenna || 'Port 1 (Overhead)',
-          };
-
-          setRecentReads(prev => {
-            const next = [
-              newReadRecord,
-              ...prev.filter(r => r.transactionId !== pending.transactionId).slice(0, 14),
-            ];
-            try {
-              localStorage.setItem(DISPATCH_READS_KEY, JSON.stringify(next));
-            } catch {
-              // ignore
-            }
-            return next;
-          });
-
-          // 4. Confetti and toast notification
+          // 3. Confetti and toast notification
           confetti({
             particleCount: 30,
             spread: 60,
@@ -229,12 +175,15 @@ export const LabelGeneration: React.FC = () => {
             duration: 8,
           });
 
-          // 5. Update status in DataContext
+          // 4. Update status in DataContext and refresh from SQLite
           if (updateTransactionStatus) {
             updateTransactionStatus(pending.transactionId, 'Dispatched');
           }
+          if (refreshTransactions) {
+            refreshTransactions();
+          }
 
-          // 6. Clear backend buffer
+          // 5. Clear backend buffer
           try {
             const clearFn = TransactionsApi.clearFixedRfid;
             if (typeof clearFn === 'function') {
@@ -246,7 +195,7 @@ export const LabelGeneration: React.FC = () => {
             // ignore clear error
           }
 
-          // 7. Auto-reset timer: Hold scan detection for 5 seconds, then return to Green Steady (Standby)
+          // 6. Auto-reset timer: Hold scan detection for 5 seconds, then return to Green Steady (Standby)
           if (autoResetTimerRef.current) {
             clearTimeout(autoResetTimerRef.current);
           }
@@ -268,27 +217,25 @@ export const LabelGeneration: React.FC = () => {
         clearTimeout(autoResetTimerRef.current);
       }
     };
-  }, [masterData, updateTransactionStatus, handleResetToStandby, fixedScanner]);
+  }, [masterData, updateTransactionStatus, refreshTransactions, handleResetToStandby, fixedScanner]);
 
   // Search filter for bottom transaction records table
   const [tableSearchText, setTableSearchText] = useState<string>('');
 
   const filteredReads = useMemo(() => {
-    if (!tableSearchText.trim()) return recentReads;
+    if (!tableSearchText.trim()) return dispatchedTransactions;
     const q = tableSearchText.toLowerCase().trim();
-    return recentReads.filter(
+    return dispatchedTransactions.filter(
       r =>
-        r.transactionId.toLowerCase().includes(q) ||
-        r.materialCode.toLowerCase().includes(q) ||
-        r.partNumber.toLowerCase().includes(q) ||
-        r.workOrderNo.toLowerCase().includes(q) ||
-        r.rfidTag.toLowerCase().includes(q) ||
-        r.productName.toLowerCase().includes(q) ||
-        r.timestamp.toLowerCase().includes(q) ||
-        r.status.toLowerCase().includes(q) ||
-        r.antenna.toLowerCase().includes(q)
+        (r.transactionId && r.transactionId.toLowerCase().includes(q)) ||
+        (r.materialCode && r.materialCode.toLowerCase().includes(q)) ||
+        (r.partNumber && r.partNumber.toLowerCase().includes(q)) ||
+        (r.workOrderNo && r.workOrderNo.toLowerCase().includes(q)) ||
+        (r.rfidUniqueId && r.rfidUniqueId.toLowerCase().includes(q)) ||
+        (r.productName && r.productName.toLowerCase().includes(q)) ||
+        (r.timestamp && r.timestamp.toLowerCase().includes(q))
     );
-  }, [recentReads, tableSearchText]);
+  }, [dispatchedTransactions, tableSearchText]);
 
 
   // Helper to copy text to clipboard with user feedback
@@ -663,7 +610,7 @@ Read Timestamp: ${new Date().toISOString()}
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
               <HistoryOutlined style={{ color: '#0284C7' }} />
               <span style={{ fontWeight: 800, fontSize: '14px' }}>
-                FG Dispatch Transaction Records ({filteredReads.length}{filteredReads.length !== recentReads.length ? ` of ${recentReads.length}` : ''})
+                FG Dispatch Transaction Records ({filteredReads.length}{filteredReads.length !== dispatchedTransactions.length ? ` of ${dispatchedTransactions.length}` : ''})
               </span>
             </div>
             <Space size="middle" wrap>
@@ -699,31 +646,21 @@ Read Timestamp: ${new Date().toISOString()}
         styles={{ body: { padding: '8px 12px' } }}
       >
         <Table
-          size="small"
+          size="middle"
           dataSource={filteredReads}
           rowKey="id"
           pagination={false}
-          locale={{ emptyText: tableSearchText ? `No dispatch records matching "${tableSearchText}"` : 'No recent conveyor records' }}
+          scroll={{ x: 1000 }}
+          locale={{ emptyText: tableSearchText ? `No dispatch records matching "${tableSearchText}"` : 'No recent dispatch records' }}
           columns={[
-            {
-              title: 'Date & Time',
-              dataIndex: 'timestamp',
-              key: 'timestamp',
-              width: 160,
-              render: (t: string) => (
-                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#64748b' }}>
-                  {formatToIST(t)}
-                </span>
-              ),
-            },
             {
               title: 'Transaction ID',
               dataIndex: 'transactionId',
               key: 'transactionId',
-              width: 190,
+              width: 170,
               render: (tx: string) => (
                 <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11px' }}>{tx}</span>
+                  <strong style={{ color: '#E53935', fontFamily: 'monospace' }}>{tx}</strong>
                   <Tooltip title="Copy Transaction ID">
                     <Button
                       size="small"
@@ -736,68 +673,34 @@ Read Timestamp: ${new Date().toISOString()}
               ),
             },
             {
+              title: 'Factory RFID Tag ID',
+              dataIndex: 'rfidUniqueId',
+              key: 'rfidUniqueId',
+              width: 220,
+              render: (rfid: string) => (
+                <span style={{ fontFamily: 'monospace', fontSize: '12px', color: '#0284C7', fontWeight: 700 }}>
+                  {rfid}
+                </span>
+              ),
+            },
+            {
+              title: 'Work Order No. (WO)',
+              dataIndex: 'workOrderNo',
+              key: 'workOrderNo',
+              width: 160,
+              render: (wo: string) => (
+                <Tag color="purple" style={{ fontFamily: 'monospace', margin: 0 }}>
+                  {wo}
+                </Tag>
+              ),
+            },
+            {
               title: 'Material Code',
               dataIndex: 'materialCode',
               key: 'materialCode',
-              width: 160,
+              width: 150,
               render: (mat: string) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <strong style={{ color: '#E53935', fontFamily: 'monospace', fontSize: '12px' }}>{mat}</strong>
-                  <Tooltip title="Copy Material Code">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<CopyOutlined style={{ fontSize: '11px', color: '#E53935' }} />}
-                      onClick={() => handleCopy(mat, `m_${mat}`, 'Material Code')}
-                    />
-                  </Tooltip>
-                </div>
-              ),
-            },
-            {
-              title: 'Part Number',
-              dataIndex: 'partNumber',
-              key: 'partNumber',
-              width: 160,
-              render: (part: string) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11px' }}>{part}</span>
-                  <Tooltip title="Copy Part Number">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<CopyOutlined style={{ fontSize: '11px' }} />}
-                      onClick={() => handleCopy(part, `p_${part}`, 'Part Number')}
-                    />
-                  </Tooltip>
-                </div>
-              ),
-            },
-            {
-              title: 'Work Order No',
-              dataIndex: 'workOrderNo',
-              key: 'workOrderNo',
-              width: 180,
-              render: (wo: string) => (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-                  <span style={{ fontFamily: 'monospace', fontWeight: 700, fontSize: '11px', color: '#7c3aed' }}>{wo}</span>
-                  <Tooltip title="Copy Work Order">
-                    <Button
-                      size="small"
-                      type="text"
-                      icon={<CopyOutlined style={{ fontSize: '11px', color: '#7c3aed' }} />}
-                      onClick={() => handleCopy(wo, `w_${wo}`, 'Work Order Number')}
-                    />
-                  </Tooltip>
-                </div>
-              ),
-            },
-            {
-              title: 'RFID ID',
-              dataIndex: 'rfidTag',
-              key: 'rfidTag',
-              render: (rfid: string) => (
-                <span style={{ fontFamily: 'monospace', fontSize: '11px', color: '#0284C7' }}>{rfid}</span>
+                <strong style={{ color: '#E53935', fontFamily: 'monospace' }}>{mat}</strong>
               ),
             },
             {
@@ -806,10 +709,37 @@ Read Timestamp: ${new Date().toISOString()}
               key: 'status',
               width: 120,
               align: 'center',
-              render: (status: string) => (
-                <Tag color="green" style={{ margin: 0, fontWeight: 700, borderRadius: '4px', fontSize: '11px' }}>
-                  {status || 'Dispatch'}
-                </Tag>
+              render: () => (
+                <Tooltip title="System Status: Outbound Dispatched / Completed">
+                  <Tag
+                    color="success"
+                    style={{
+                      margin: 0,
+                      fontWeight: 800,
+                      fontSize: '11px',
+                      borderRadius: '12px',
+                      padding: '2px 10px',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    <CheckCircleOutlined />
+                    DISPATCH
+                  </Tag>
+                </Tooltip>
+              ),
+            },
+            {
+              title: 'Timestamp',
+              dataIndex: 'timestamp',
+              key: 'timestamp',
+              align: 'center',
+              width: 160,
+              render: (t: string, r: any) => (
+                <span style={{ fontSize: '12px', color: '#64748b', fontFamily: 'monospace' }}>
+                  {formatToIST(r.labelLookupTimestamp || r.dispatchScanTimestamp || t || r.createdOn)}
+                </span>
               ),
             },
           ]}

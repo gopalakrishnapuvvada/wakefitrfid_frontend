@@ -751,26 +751,39 @@ def post_fixed_rfid(
         db.add(StatusTransactionData(id="dispatch", name="Dispatch", created_by="system"))
         db.flush()
 
-    # 2. Update status to 'dispatch' and timestamp
+    # 2. Update status to 'dispatch' and label_lookup_timestamp ONLY if not already dispatched
     now_utc = datetime.now(timezone.utc)
     now_ist = datetime.now(IST)
-    txn.status_id = "dispatch"
-    txn.label_lookup_timestamp = now_utc
-    txn.updated_on = now_utc
+    
+    is_first_dispatch = not txn.label_lookup_timestamp
+    if is_first_dispatch:
+        txn.status_id = "dispatch"
+        txn.label_lookup_timestamp = now_utc
+        txn.updated_on = now_utc
 
-    try:
-        db.commit()
-        db.refresh(txn)
-    except IntegrityError as exc:
-        db.rollback()
-        raise HTTPException(
-            status_code=status.HTTP_409_CONFLICT,
-            detail=f"Database constraint violation while updating transaction status to dispatch: {exc}",
-        )
+        try:
+            db.commit()
+            db.refresh(txn)
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(
+                status_code=status.HTTP_409_CONFLICT,
+                detail=f"Database constraint violation while updating transaction status to dispatch: {exc}",
+            )
+    else:
+        # If already dispatched, ensure status_id is dispatch without modifying the original dispatch timestamp
+        if txn.status_id != "dispatch":
+            txn.status_id = "dispatch"
+            txn.updated_on = now_utc
+            db.commit()
+            db.refresh(txn)
 
-    item = txn.master_item
-    time_str = now_ist.strftime("%Y-%m-%d %H:%M:%S")
-    full_time_str = now_ist.strftime("%Y-%m-%d %H:%M:%S")
+    # Use the persistent dispatch timestamp in IST
+    dispatch_dt = txn.label_lookup_timestamp or now_utc
+    if dispatch_dt.tzinfo is None:
+        dispatch_dt = dispatch_dt.replace(tzinfo=timezone.utc)
+    time_str = dispatch_dt.astimezone(IST).strftime("%Y-%m-%d %H:%M:%S")
+    full_time_str = time_str
     scan_id = f"FIXED-SCAN-{int(now_ist.timestamp())}-{_fixed_scan_counter}"
 
     prod_name = (

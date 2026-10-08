@@ -181,7 +181,11 @@ class TransactionResponse(BaseModel):
                 else:
                     img_urls_list.append(f"/{p}")
 
-            time_dt = data.product_validation_timestamp or data.created_on
+            if data.status_id in ["dispatch", "dispatched"] and data.label_lookup_timestamp:
+                time_dt = data.label_lookup_timestamp
+            else:
+                time_dt = data.product_validation_timestamp or data.created_on
+
             if time_dt:
                 c_on = time_dt
                 if c_on.tzinfo is None:
