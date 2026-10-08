@@ -213,12 +213,27 @@ export const MasterData: React.FC = () => {
         return;
       }
 
-      const finalImages = modalImages
+      let currentImages = [...modalImages];
+      const pendingUrl = (imageUrlInput || '').trim();
+      if (pendingUrl && !currentImages.includes(pendingUrl)) {
+        if (!pendingUrl.startsWith('data:') && !pendingUrl.toLowerCase().includes('base64') && pendingUrl.length <= 500 && (pendingUrl.startsWith('http://') || pendingUrl.startsWith('https://') || pendingUrl.startsWith('/'))) {
+          currentImages.push(pendingUrl);
+          setModalImages(currentImages);
+          setImageUrlInput('');
+        }
+      }
+
+      const finalImages = currentImages
         .filter(u => typeof u === 'string' && u.trim().length > 0 && !u.startsWith('data:') && !u.toLowerCase().includes('base64') && u.length <= 500)
         .slice(0, 4);
 
+      if (finalImages.length === 0) {
+        message.error('At least one Finished Good Image URL is mandatory.');
+        return;
+      }
+
       const payload: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'> = {
-        fgImage: finalImages.length > 0 ? finalImages : [NO_IMAGE_FALLBACK],
+        fgImage: finalImages,
         images: finalImages,
         materialCode: cleanMat,
         partNumber: cleanPart,
@@ -942,21 +957,22 @@ export const MasterData: React.FC = () => {
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
               <div>
+                <span style={{ color: '#ff4d4f', marginRight: '4px', fontSize: '14px', fontWeight: 700 }}>*</span>
                 <span style={{ fontWeight: 700, fontSize: '14px', color: isDark ? '#f8fafc' : '#0f172a' }}>
-                  Finished Good Image URLs (fg_image, Max 4 URLs)
+                  Finished Good Image URLs (Required, 1-4 URLs)
                 </span>
                 <div style={{ fontSize: '11px', color: '#64748b', marginTop: '2px' }}>
-                  Enter or paste direct image links (e.g. AWS S3 URLs). Up to 4 links can be saved as a list in the database.
+                  Enter or paste direct image links (e.g. AWS S3 URLs). At least 1 image URL is mandatory (up to 4 links).
                 </div>
               </div>
 
-              <Tag color={modalImages.length >= 4 ? 'error' : modalImages.length > 0 ? 'success' : 'default'} style={{ fontWeight: 700, fontSize: '12px' }}>
-                {modalImages.length} / 4 URLs Added
+              <Tag color={modalImages.length >= 4 ? 'error' : modalImages.length > 0 ? 'success' : 'error'} style={{ fontWeight: 700, fontSize: '12px' }}>
+                {modalImages.length} / 4 URLs Added {modalImages.length === 0 ? '(Required)' : ''}
               </Tag>
             </div>
 
             {/* URL Text Input & Add Button */}
-            <div style={{ display: 'flex', gap: '8px', marginBottom: '10px' }}>
+            <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
               <Input
                 prefix={<LinkOutlined style={{ color: '#94a3b8' }} />}
                 placeholder="Paste or enter image URL (e.g. https://wakefit-co.s3.ap-south-1.amazonaws.com/img/npl_raw_images/WSFANPRN1FOBL.jpg)"
@@ -978,54 +994,22 @@ export const MasterData: React.FC = () => {
               </Button>
             </div>
 
-            {/* Quick Helper Shortcuts */}
-            <div style={{ marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
-              <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748b' }}>Quick Link Presets:</span>
-              <Button
-                size="small"
-                type="dashed"
-                style={{ fontSize: '11px', height: '24px', padding: '0 8px', color: '#0284c7', borderColor: '#38bdf8' }}
-                disabled={modalImages.length >= 4 || modalImages.includes('https://wakefit-co.s3.ap-south-1.amazonaws.com/img/npl_raw_images/WSFANPRN1FOBL.jpg')}
-                onClick={() => handleAddImageUrl('https://wakefit-co.s3.ap-south-1.amazonaws.com/img/npl_raw_images/WSFANPRN1FOBL.jpg')}
-              >
-                + Wakefit S3 Sample URL
-              </Button>
-              <Space size={6} wrap>
-                {[
-                  { label: 'Mattress 1', url: '/products/mattress_1.jpg' },
-                  { label: 'Mattress 2', url: '/products/mattress_2.jpg' },
-                  { label: 'Sofa 1', url: '/products/sofa_1.jpg' },
-                  { label: 'Recliner 1', url: '/products/recliner_1.jpg' },
-                ].map(stock => (
-                  <Button
-                    key={stock.url}
-                    size="small"
-                    style={{ fontSize: '11px', height: '24px', padding: '0 8px' }}
-                    disabled={modalImages.includes(stock.url) || modalImages.length >= 4}
-                    onClick={() => handleAddImageUrl(stock.url)}
-                  >
-                    +{stock.label}
-                  </Button>
-                ))}
-              </Space>
-            </div>
-
             {/* List of Configured Image URLs with Previews */}
             {modalImages.length === 0 ? (
               <div
                 style={{
                   padding: '16px',
                   borderRadius: '8px',
-                  border: `1px dashed ${isDark ? '#475569' : '#cbd5e1'}`,
+                  border: `1px dashed ${isDark ? '#ef4444' : '#f87171'}`,
                   textAlign: 'center',
-                  backgroundColor: isDark ? 'rgba(15, 23, 42, 0.4)' : '#ffffff',
+                  backgroundColor: isDark ? 'rgba(239, 68, 68, 0.06)' : '#fef2f2',
                 }}
               >
-                <div style={{ fontSize: '12px', color: '#64748b' }}>
-                  No image links added yet. Paste image URLs above or click <strong>+ Wakefit S3 Sample URL</strong>.
+                <div style={{ fontSize: '12px', fontWeight: 600, color: '#dc2626' }}>
+                  At least 1 image URL link is mandatory.
                 </div>
-                <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
-                  (If left empty, the fallback placeholder image will be used)
+                <div style={{ fontSize: '11px', color: '#64748b', marginTop: '4px' }}>
+                  Please paste a direct image URL above and click <strong>Add Image Link</strong>.
                 </div>
               </div>
             ) : (
