@@ -243,3 +243,17 @@ class MasterDataListResponse(BaseModel):
 
     model_config = ConfigDict(populate_by_name=True)
 
+
+class BulkImportIssue(BaseModel):
+    row: int
+    kind: str
+    message: str
+
+
+class BulkImportResult(BaseModel):
+    total_rows: int
+    imported_count: int
+    skipped_count: int
+    error_count: int
+    issues: List[BulkImportIssue]
+

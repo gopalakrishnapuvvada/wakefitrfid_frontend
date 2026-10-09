@@ -1,12 +1,14 @@
 from __future__ import annotations
 from datetime import datetime, timezone
+from zipfile import BadZipFile
 try:
     from typing import Any, Dict, List, Optional, Union
 except ImportError:
     from typing_extensions import Annotated, Optional, Union, List, Dict, Any
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, HTTPException, Query, UploadFile, status
+from openpyxl.utils.exceptions import InvalidFileException
 from sqlalchemy import func, or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
@@ -24,10 +26,12 @@ from schemas.master_data import (
     MasterDataItemResponse,
     MasterDataItemUpdate,
     MasterDataListResponse,
+    BulkImportResult,
 )
 from schemas.roles import RoleResponse, RoleUpdatePasswordRequest
 from schemas.devices import DeviceCreateRequest, DeviceUpdateRequest, DeviceResponse
 from utils.dependencies import get_db
+from utils.master_data_import import parse_master_data_workbook
 
 
 router = APIRouter(
@@ -183,7 +187,7 @@ def get_master_data_items(
             )
         )
 
-    return query.order_by(MasterDataItem.created_on.desc()).offset(skip).limit(limit).all()
+    return query.order_by(MasterDataItem.created_on.desc(), MasterDataItem.id.desc()).offset(skip).limit(limit).all()
 
 
 @router.get("/catalog", response_model=MasterDataListResponse)
@@ -198,6 +202,84 @@ def get_catalog_wrapped(
         success=True,
         count=len(items),
         data=items,
+    )
+
+
+@router.post("/bulk-import", response_model=BulkImportResult)
+def bulk_import_master_data(
+    file: UploadFile = File(...),
+    db: Session = Depends(get_db),
+):
+    """Create FG catalog rows from the client XLSX template."""
+    if not (file.filename or "").lower().endswith(".xlsx"):
+        raise HTTPException(status_code=400, detail="Upload an .xlsx FG master data workbook.")
+
+    contents = file.file.read(10 * 1024 * 1024 + 1)
+    if len(contents) > 10 * 1024 * 1024:
+        raise HTTPException(status_code=413, detail="The workbook must be 10 MB or smaller.")
+    try:
+        rows, issues, total_rows = parse_master_data_workbook(contents)
+    except (BadZipFile, InvalidFileException, ValueError, KeyError, EOFError) as exc:
+        raise HTTPException(status_code=422, detail=f"Could not import workbook: {exc}") from exc
+
+    existing = db.query(MasterDataItem.material_code, MasterDataItem.part_number).all()
+    material_codes = {item.material_code.casefold() for item in existing}
+    part_numbers = {item.part_number.casefold() for item in existing}
+    to_create = []
+    for row in rows:
+        material_key = row["material_code"].casefold()
+        part_key = row["part_number"].casefold()
+        if material_key in material_codes:
+            issues.append({"row": row["row"], "kind": "skipped", "message": f"Material Code '{row['material_code']}' already exists."})
+            continue
+        if part_key in part_numbers:
+            issues.append({"row": row["row"], "kind": "skipped", "message": f"Part Number '{row['part_number']}' already exists."})
+            continue
+        material_codes.add(material_key)
+        part_numbers.add(part_key)
+        to_create.append(row)
+
+    if to_create:
+        try:
+            category_ids = {
+                name: resolve_category(db, None, name)
+                for name in {row["category"] for row in to_create}
+            }
+            status_ids = {
+                name: resolve_status(db, None, name)
+                for name in {row["status"] for row in to_create}
+            }
+            db.add_all([
+                MasterDataItem(
+                    id=f"md-{uuid4().hex[:12]}",
+                    material_code=row["material_code"],
+                    part_number=row["part_number"],
+                    category_id=category_ids[row["category"]],
+                    model=row["model"],
+                    product_description=row["product_description"],
+                    length_mm=row["length_mm"],
+                    width_mm=row["width_mm"],
+                    height_mm=row["height_mm"],
+                    color=row["color"],
+                    status_id=status_ids[row["status"]],
+                    fg_image=row["fg_image"],
+                    created_by="bulk_import",
+                    updated_by="bulk_import",
+                )
+                for row in to_create
+            ])
+            db.commit()
+        except IntegrityError as exc:
+            db.rollback()
+            raise HTTPException(status_code=409, detail="A Material Code or Part Number was created by another request during import. Refresh and upload again.") from exc
+
+    issues.sort(key=lambda issue: issue["row"])
+    return BulkImportResult(
+        total_rows=total_rows,
+        imported_count=len(to_create),
+        skipped_count=sum(issue["kind"] == "skipped" for issue in issues),
+        error_count=sum(issue["kind"] == "error" for issue in issues),
+        issues=issues,
     )
 
 

@@ -5,12 +5,28 @@ from pathlib import Path
 
 block_cipher = None
 
-ROOT_DIR = os.path.abspath(os.getcwd())
+ROOT_DIR = Path(SPECPATH).resolve()
 
-datas = [
-    (os.path.join(ROOT_DIR, 'frontend', 'dist'), os.path.join('frontend', 'dist')),
-    (os.path.join(ROOT_DIR, 'backend'), 'backend'),
-]
+
+def collect_backend_data():
+    """Bundle backend assets while keeping runtime DB and uploads external."""
+    backend_dir = ROOT_DIR / 'backend'
+    collected = []
+    for current_dir, directory_names, file_names in os.walk(backend_dir):
+        directory_names[:] = [name for name in directory_names
+                              if name not in {'__pycache__', '.pytest_cache', 'uploads', 'build', 'dist'}]
+        current_path = Path(current_dir)
+        for file_name in file_names:
+            source = current_path / file_name
+            if (source.suffix.lower() in {'.db', '.sqlite', '.sqlite3', '.pyc'}
+                    or (source.suffix.lower() == '.py' and file_name.startswith('test_'))):
+                continue
+            destination = source.parent.relative_to(ROOT_DIR)
+            collected.append((str(source), str(destination)))
+    return collected
+
+
+datas = [(str(ROOT_DIR / 'frontend' / 'dist'), os.path.join('frontend', 'dist'))] + collect_backend_data()
 
 hiddenimports = [
     'uvicorn',
@@ -26,10 +42,9 @@ hiddenimports = [
     'uvicorn.protocols.websockets.auto',
     'uvicorn.protocols.websockets.websockets_impl',
     'uvicorn.protocols.websockets.wsproto_impl',
-    'uvicorn.lifespans',
-    'uvicorn.lifespans.auto',
-    'uvicorn.lifespans.on',
-    'uvicorn.lifespans.off',
+    'uvicorn.lifespan',
+    'uvicorn.lifespan.on',
+    'uvicorn.lifespan.off',
     'fastapi',
     'starlette',
     'starlette.middleware.cors',
@@ -45,6 +60,9 @@ hiddenimports = [
     'sqlalchemy.sql.default_comparator',
     'multipart',
     'python_multipart',
+    'openpyxl',
+    'openpyxl.reader.excel',
+    'backend.utils.master_data_import',
     'websockets',
     'backend.main',
     'backend.models',
@@ -63,7 +81,7 @@ hiddenimports = [
 
 a = Analysis(
     ['launcher.py'],
-    pathex=[ROOT_DIR, os.path.join(ROOT_DIR, 'backend')],
+    pathex=[str(ROOT_DIR), str(ROOT_DIR / 'backend')],
     binaries=[],
     datas=datas,
     hiddenimports=hiddenimports,

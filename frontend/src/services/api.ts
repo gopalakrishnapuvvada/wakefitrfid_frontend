@@ -8,25 +8,22 @@ import type {
 } from '../types';
 import { formatToIST } from '../utils/dateUtils';
 
-// Use relative URL when running on Vite dev server (handled by proxy), or direct localhost:8000
-const API_BASE = import.meta.env.VITE_API_URL ?? (
-  typeof window !== 'undefined' && window.location.port === '5173'
-    ? ''
-    : 'http://localhost:8000'
-);
+// Use the host serving the page so bulk uploads work from other network PCs.
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
 
 /**
  * Standard fetch helper with timeout and JSON parsing
  */
 async function apiFetch<T>(endpoint: string, options?: RequestInit): Promise<T> {
   const url = `${API_BASE}${endpoint}`;
+  const headers = new Headers(options?.headers);
+  if (!(options?.body instanceof FormData) && !headers.has('Content-Type')) {
+    headers.set('Content-Type', 'application/json');
+  }
+  headers.set('Accept', 'application/json');
   const response = await fetch(url, {
     ...options,
-    headers: {
-      'Content-Type': 'application/json',
-      Accept: 'application/json',
-      ...options?.headers,
-    },
+    headers,
   });
 
   if (!response.ok) {
@@ -288,12 +285,32 @@ export function isValidImageUrl(url: any): boolean {
   return u.startsWith('http://') || u.startsWith('https://') || u.startsWith('/');
 }
 
+export interface MasterDataImportIssue {
+  row: number;
+  kind: 'skipped' | 'error';
+  message: string;
+}
+
+export interface MasterDataImportResult {
+  total_rows: number;
+  imported_count: number;
+  skipped_count: number;
+  error_count: number;
+  issues: MasterDataImportIssue[];
+}
+
 export const MasterDataApi = {
   /**
    * GET /api/master_data/
    */
   async getMasterData(): Promise<MasterDataItem[]> {
-    const items = await apiFetch<any[]>('/api/master_data/');
+    const items: any[] = [];
+    const pageSize = 500;
+    while (true) {
+      const page = await apiFetch<any[]>(`/api/master_data/?skip=${items.length}&limit=${pageSize}`);
+      items.push(...page);
+      if (page.length < pageSize) break;
+    }
     return items.map(item => {
       let imgList: string[] = [];
       if (Array.isArray(item.fgImage)) {
@@ -335,6 +352,15 @@ export const MasterDataApi = {
         createdAt: formatToIST(item.createdOn),
         updatedAt: formatToIST(item.updatedOn || item.createdOn),
       };
+    });
+  },
+
+  async bulkImport(file: File): Promise<MasterDataImportResult> {
+    const form = new FormData();
+    form.append('file', file);
+    return apiFetch<MasterDataImportResult>('/api/master_data/bulk-import', {
+      method: 'POST',
+      body: form,
     });
   },
 

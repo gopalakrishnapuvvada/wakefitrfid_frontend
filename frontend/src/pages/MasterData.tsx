@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { 
   Card, 
   Table, 
@@ -26,6 +26,7 @@ import {
   EditOutlined, 
   DeleteOutlined, 
   DownloadOutlined, 
+  UploadOutlined,
   SearchOutlined, 
   DatabaseOutlined,
   PictureOutlined,
@@ -47,7 +48,7 @@ export const NO_IMAGE_FALLBACK = '/images/no_image.svg';
 const { Option } = Select;
 
 export const MasterData: React.FC = () => {
-  const { masterData, addMasterDataItem, updateMasterDataItem, deleteMasterDataItem, marriedTransactions } = useData();
+  const { masterData, addMasterDataItem, updateMasterDataItem, deleteMasterDataItem, bulkImportMasterData, marriedTransactions } = useData();
   const { isDark } = useAppTheme();
 
   const [searchText, setSearchText] = useState('');
@@ -59,10 +60,56 @@ export const MasterData: React.FC = () => {
   const [detailDrawerOpen, setDetailDrawerOpen] = useState(false);
   const [modalImages, setModalImages] = useState<string[]>([]);
   const [imageUrlInput, setImageUrlInput] = useState<string>('');
+  const [isBulkUploading, setIsBulkUploading] = useState(false);
+  const bulkFileInput = useRef<HTMLInputElement>(null);
   const [form] = Form.useForm();
 
-  // Preset categories
-  const categories = ['Mattress', 'Sofa', 'Recliner', 'Bed Frame', 'Pillow', 'Accessories'];
+  const handleBulkFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file) return;
+    if (!file.name.toLowerCase().endsWith('.xlsx')) {
+      message.error('Select an .xlsx FG master data workbook.');
+      return;
+    }
+    if (file.size > 10 * 1024 * 1024) {
+      message.error('The workbook must be 10 MB or smaller.');
+      return;
+    }
+
+    setIsBulkUploading(true);
+    try {
+      const result = await bulkImportMasterData(file);
+      Modal.info({
+        title: 'FG master data import',
+        width: 640,
+        content: (
+          <div>
+            <p>{result.imported_count} imported, {result.skipped_count} already present, {result.error_count} invalid out of {result.total_rows} rows.</p>
+            {result.issues.length > 0 && (
+              <div style={{ maxHeight: 260, overflowY: 'auto' }}>
+                {result.issues.slice(0, 50).map(issue => (
+                  <div key={`${issue.row}-${issue.kind}`} style={{ marginBottom: 6 }}>
+                    <strong>Row {issue.row} ({issue.kind}):</strong> {issue.message}
+                  </div>
+                ))}
+                {result.issues.length > 50 && <div>Showing the first 50 of {result.issues.length} row messages.</div>}
+              </div>
+            )}
+          </div>
+        ),
+      });
+    } catch (error: unknown) {
+      message.error(error instanceof Error ? error.message : 'Could not import FG master data.');
+    } finally {
+      setIsBulkUploading(false);
+    }
+  };
+
+  const categories = Array.from(new Set([
+    'Mattress', 'Sofa', 'Recliner', 'Bed Frame', 'Pillow', 'Accessories',
+    ...masterData.map(item => item.category).filter(Boolean),
+  ]));
 
   const handleOpenDetail = (item: MasterDataItem) => {
     setDetailItem(item);
@@ -545,6 +592,20 @@ export const MasterData: React.FC = () => {
               <Button icon={<DownloadOutlined />} onClick={handleExportCSV}>
                 Export CSV
               </Button>
+
+              <input
+                ref={bulkFileInput}
+                type="file"
+                accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                onChange={handleBulkFile}
+                aria-label="Choose FG master data Excel workbook"
+                style={{ display: 'none' }}
+              />
+              <Tooltip title="Upload the client XLSX template. FG Image columns should contain image URLs.">
+                <Button icon={<UploadOutlined />} loading={isBulkUploading} onClick={() => bulkFileInput.current?.click()}>
+                  Bulk Upload XLSX
+                </Button>
+              </Tooltip>
 
               <Button
                 type="primary"

@@ -57,8 +57,10 @@ jobs:
             --hidden-import uvicorn.protocols.http.auto `
             --hidden-import uvicorn.protocols.websockets `
             --hidden-import uvicorn.protocols.websockets.auto `
-            --hidden-import uvicorn.lifespans `
-            --hidden-import uvicorn.lifespans.on `
+            --hidden-import uvicorn.lifespan `
+            --hidden-import uvicorn.lifespan.on `
+            --hidden-import openpyxl.reader.excel `
+            --hidden-import python_multipart `
             main.py
 
       # 4. Upload GitHub Artifact (Single Standalone .exe)

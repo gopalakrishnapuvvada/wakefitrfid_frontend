@@ -17,6 +17,7 @@ import {
   INITIAL_MARRIED_TRANSACTIONS
 } from '../mock/initialData';
 import { MasterDataApi, DevicesApi, TransactionsApi, getProductImageByMaterial } from '../services/api';
+import type { MasterDataImportResult } from '../services/api';
 import { getCurrentIST } from '../utils/dateUtils';
 import dayjs from 'dayjs';
 
@@ -26,7 +27,7 @@ interface DataContextType {
   addMasterDataItem: (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>) => Promise<MasterDataItem>;
   updateMasterDataItem: (id: string, updates: Partial<MasterDataItem>) => Promise<MasterDataItem>;
   deleteMasterDataItem: (id: string) => Promise<void>;
-  bulkImportMasterData: (items: Array<Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>>) => void;
+  bulkImportMasterData: (file: File) => Promise<MasterDataImportResult>;
   getMasterDataByCode: (code: string) => MasterDataItem | undefined;
 
   // Devices
@@ -108,7 +109,12 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
   });
 
   useEffect(() => {
-    localStorage.setItem(MASTER_DATA_KEY, JSON.stringify(masterData));
+    try {
+      localStorage.setItem(MASTER_DATA_KEY, JSON.stringify(masterData));
+    } catch (error) {
+      // Large imported catalogs still live in SQLite and reload from the API.
+      console.warn('Master Data browser cache is full:', error);
+    }
   }, [masterData]);
 
   useEffect(() => {
@@ -138,14 +144,14 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   }, []);
 
+  const refreshMasterData = useCallback(async () => {
+    const items = await MasterDataApi.getMasterData();
+    setMasterData(items);
+  }, []);
+
   // Synchronize live catalog, devices and transactions from FastAPI Backend
   useEffect(() => {
-    MasterDataApi.getMasterData()
-      .then(items => {
-        if (Array.isArray(items)) {
-          setMasterData(items);
-        }
-      })
+    refreshMasterData()
       .catch(err => {
         console.warn('Backend Master Data API unavailable:', err);
       });
@@ -161,7 +167,7 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
       });
 
     refreshTransactions();
-  }, [refreshTransactions]);
+  }, [refreshMasterData, refreshTransactions]);
 
   const addMasterDataItem = async (item: Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>): Promise<MasterDataItem> => {
     // Commit to backend API first to validate database & uniqueness constraints
@@ -185,15 +191,10 @@ export const DataProvider: React.FC<{ children: React.ReactNode }> = ({ children
     setMasterData(prev => prev.filter(item => item.id !== id && item.materialCode !== id));
   };
 
-  const bulkImportMasterData = (items: Array<Omit<MasterDataItem, 'id' | 'createdAt' | 'updatedAt'>>) => {
-    const now = new Date().toISOString().replace('T', ' ').substring(0, 19);
-    const newItems: MasterDataItem[] = items.map((item, idx) => ({
-      ...item,
-      id: `md-${Date.now().toString(36)}-${idx}`,
-      createdAt: now,
-      updatedAt: now,
-    }));
-    setMasterData(prev => [...newItems, ...prev]);
+  const bulkImportMasterData = async (file: File): Promise<MasterDataImportResult> => {
+    const result = await MasterDataApi.bulkImport(file);
+    await refreshMasterData();
+    return result;
   };
 
   const getMasterDataByCode = (code: string): MasterDataItem | undefined => {
