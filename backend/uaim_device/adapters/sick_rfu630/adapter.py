@@ -431,12 +431,18 @@ class SickRFU630Adapter(DeviceAdapter):
             except asyncio.CancelledError:
                 break
             except Exception as e:
-                logger.debug(f"[{self.device_id}] Heartbeat check warning: {e}")
+                logger.warning(f"[{self.device_id}] SICK Heartbeat check failed ({e}). Dropping stale connection to trigger automatic reconnection.")
+                if self._connection:
+                    try:
+                        await self._connection.disconnect()
+                    except Exception:
+                        pass
+                break
 
     async def _supervisor_loop(self) -> None:
         """Supervises connection health and triggers automatic exponential backoff reconnection."""
         while not self._shutdown_event.is_set():
-            await asyncio.sleep(0.1)
+            await asyncio.sleep(0.5)
             if self._is_running:
                 is_conn = self._connection and self._connection.is_connected
                 if not is_conn and self.state not in (DeviceState.CONNECTING, DeviceState.RECONNECTING):
@@ -450,6 +456,14 @@ class SickRFU630Adapter(DeviceAdapter):
                         self.state_machine.transition(DeviceState.RECONNECTING)
                         await asyncio.sleep(delay)
                         try:
+                            # Clean up old connection instance before attempting fresh socket
+                            if self._connection:
+                                try:
+                                    await self._connection.disconnect()
+                                except Exception:
+                                    pass
+                                self._connection = None
+
                             await self.connect()
                             if self.config.auto_start_on_connect and self._connection:
                                 try:

@@ -56,6 +56,22 @@ class SickTcpConnection:
                         asyncio.open_connection(self.host, target_port),
                         timeout=self.command_timeout
                     )
+                    
+                    # Enable TCP Keepalive on socket to detect sudden network link drops
+                    try:
+                        sock = self._writer.get_extra_info('socket')
+                        if sock:
+                            import socket as _socket
+                            sock.setsockopt(_socket.SOL_SOCKET, _socket.SO_KEEPALIVE, 1)
+                            if hasattr(_socket, 'TCP_KEEPIDLE'):
+                                sock.setsockopt(_socket.IPPROTO_TCP, _socket.TCP_KEEPIDLE, 5)
+                            if hasattr(_socket, 'TCP_KEEPINTVL'):
+                                sock.setsockopt(_socket.IPPROTO_TCP, _socket.TCP_KEEPINTVL, 3)
+                            if hasattr(_socket, 'TCP_KEEPCNT'):
+                                sock.setsockopt(_socket.IPPROTO_TCP, _socket.TCP_KEEPCNT, 3)
+                    except Exception as sock_err:
+                        logger.debug(f"[{self.device_id}] Notice setting socket keepalive: {sock_err}")
+
                     self._is_connected = True
                     self.port = target_port
                     self._decoder.reset()
